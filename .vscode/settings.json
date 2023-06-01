@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.tailwind.css": "tailwindcss",
+        "vector": "cpp",
+        "random": "cpp"
+    }
+}
