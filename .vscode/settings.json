@@ -2,6 +2,10 @@
     "files.associations": {
         "*.tailwind.css": "tailwindcss",
         "vector": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "typeinfo": "cpp",
+        "string_view": "cpp",
+        "concepts": "cpp",
+        "kscan_gpio.h": "c"
     }
 }
