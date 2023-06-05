@@ -1,3 +1,6 @@
 [submodule "lib/ST7735_t3"]
 	path = lib/ST7735_t3
 	url = https://github.com/PaulStoffregen/ST7735_t3
+[submodule "lib/yoga"]
+	path = lib/yoga
+	url = https://github.com/facebook/yoga/tree/main
