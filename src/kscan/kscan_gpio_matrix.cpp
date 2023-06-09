@@ -5,9 +5,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "debounce.h"
-#include "kscan_gpio.h"
-#include "kscan_gpio_matrix.h"
+#include "kscan_gpio_matrix.hpp"
+#include "kscan_gpio.hpp"
+#include "debounce.hpp"
 #include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
@@ -48,31 +48,6 @@ static struct kscan_gpio kscan_matrix_cols[] = {
     { .pin = 20, .index = 8 }
 };
 
-// https://zmk.dev/docs/features/debouncing
-// instant activate
-#define INST_DEBOUNCE_PRESS_MS 0
-#define INST_DEBOUNCE_RELEASE_MS 5
-#define INST_DEBOUNCE_SCAN_PERIOD_MS 1
-#define INST_POLL_PERIOD_MS 10
-
-#define USE_POLLING false
-#define USE_INTERRUPTS (!USE_POLLING)
-
-// expand to the code if use_interrupts is true
-// (not using an if statement, needs to be entirely preprocessor)
-#if USE_POLLING == false
-#define COND_INTERRUPTS(code) code
-#else
-#define COND_INTERRUPTS(code)
-#endif
-
-#define COND_POLL_OR_INTERRUPTS(pollcode, intcode) \
-    if (USE_POLLING) {                             \
-        pollcode;                                  \
-    } else {                                       \
-        intcode;                                   \
-    }
-
 enum kscan_diode_direction {
     KSCAN_ROW2COL,
     KSCAN_COL2ROW,
@@ -85,7 +60,7 @@ struct kscan_matrix_data {
     /** Array of length config->inputs.len */
     // struct kscan_matrix_irq_callback* irqs;
     #endif
-        /** Timestamp of the current or scheduled scan. */
+    /** Timestamp of the current or scheduled scan. */
     int64_t scan_time;
     /**
      * Current state of the matrix as a flattened 2D array of length
@@ -120,7 +95,7 @@ static struct kscan_matrix_config config = {
     .outputs = KSCAN_GPIO_LIST(COND_DIODE_DIR((kscan_matrix_rows), (kscan_matrix_cols))),
     .debounce_config = {
         .debounce_press_ms = INST_DEBOUNCE_PRESS_MS,
-        .debounce_release_ms = INST_DEBOUNCE_RELEASE_MS,
+        .debounce_release_ms = INST_DEBOUNCE_RELEASE_MS
     },
     .rows = ARRAY_SIZE(kscan_matrix_rows),
     .cols = ARRAY_SIZE(kscan_matrix_cols),
@@ -154,8 +129,8 @@ static void kscan_matrix_set_all_outputs(const uint8_t value) {
 }
 
 #if USE_INTERRUPTS
-static int kscan_matrix_interrupt_enable() {
-    for(int i = 0; i < data.inputs.len; i++) {
+static void kscan_matrix_interrupt_enable() {
+    for(uint8_t i = 0; i < data.inputs.len; i++) {
         const struct kscan_gpio* gpio = &data.inputs.gpios[i];
         attachInterrupt(gpio->pin, kscan_matrix_irq_callback_handler, RISING);
     }
@@ -167,8 +142,8 @@ static int kscan_matrix_interrupt_enable() {
 #endif
 
 #if USE_INTERRUPTS
-static int kscan_matrix_interrupt_disable() {
-    for(int i = 0; i < data.inputs.len; i++) {
+static void kscan_matrix_interrupt_disable() {
+    for(uint8_t i = 0; i < data.inputs.len; i++) {
         const struct kscan_gpio* gpio = &data.inputs.gpios[i];
         detachInterrupt(gpio->pin);
     }
@@ -185,10 +160,6 @@ static void kscan_matrix_irq_callback_handler() {
     kscan_matrix_interrupt_disable();
 
     data.scan_time = millis();
-
-    // TODO: the zephyr impl makes it immediately run the work after interrupt, we can use teensythreads/eventresponder for this
-
-    // run the kscan_matrix_read function immediately, but not in the IRQ
 
     kscan_matrix_scan_thread_id = threads.addThread(kscan_matrix_read);
 }
@@ -217,9 +188,9 @@ static void kscan_matrix_read_end() {
     #endif
 }
 
-Threads::Mutex read_lock;
+Threads::Mutex kscan_matrix_read_lock;
 static void kscan_matrix_read() {
-    Threads::Scope m(read_lock); // only run one read thread at a time - there shouldn't be multiple scheduled in the first place but this prevents that from doing anything too bad
+    Threads::Scope m(kscan_matrix_read_lock); // only run one read thread at a time - there shouldn't be multiple scheduled in the first place but this prevents that from doing anything too bad
     // Scan the matrix.
     for(int i = 0; i < config.outputs.len; i++) {
         const struct kscan_gpio* out_gpio = &config.outputs.gpios[i];
@@ -229,7 +200,7 @@ static void kscan_matrix_read() {
         threads.delay(CONFIG_ZMK_KSCAN_MATRIX_WAIT_BEFORE_INPUTS);
         #endif
 
-        struct kscan_gpio_port_state state = {0};
+        // struct kscan_gpio_port_state state = {0};
 
         for(int j = 0; j < data.inputs.len; j++) {
             const struct kscan_gpio* in_gpio = &data.inputs.gpios[j];
@@ -277,18 +248,18 @@ static void kscan_matrix_read() {
 
 // omitted definition of kscan_matrix_work_handler - just calls kscan_matrix_read
 
-static void kscan_matrix_configure(const kscan_callback_t callback) {
+void kscan_matrix_configure(const kscan_callback_t callback) {
     data.callback = callback;
 }
 
-static void kscan_matrix_enable() {
+void kscan_matrix_enable() {
     data.scan_time = millis();
 
     // Read will automatically start interrupts/polling once done.
     kscan_matrix_scan_thread_id = threads.addThread(kscan_matrix_read);
 }
 
-static void kscan_matrix_disable() {
+void kscan_matrix_disable() {
     threads.kill(kscan_matrix_scan_thread_id);
 
     #if USE_INTERRUPTS
@@ -318,7 +289,7 @@ static void kscan_matrix_init_outputs() {
     }
 }
 
-static void kscan_matrix_init() {
+void kscan_matrix_init() {
     kscan_matrix_init_inputs();
     kscan_matrix_init_outputs();
     kscan_matrix_set_all_outputs(0);
