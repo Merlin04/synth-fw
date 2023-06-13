@@ -14,7 +14,6 @@
 #include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
-#include <EventResponder.h>
 
 #define INST_INPUTS_LEN 6
 
@@ -60,7 +59,7 @@ static struct kscan_direct_config config = {
 
 volatile int kscan_direct_scan_thread_id;
 
-static void kscan_direct_read();
+static void kscan_direct_read(bool from_irq = false);
 #if USE_INTERRUPTS
 static void kscan_direct_irq_callback_handler();
 #endif
@@ -84,54 +83,27 @@ static void kscan_direct_interrupt_disable() {
 #endif
 
 #if USE_INTERRUPTS
-EventResponder kscan_direct_er_create_scan_thread = EventResponder();
-
 static void kscan_direct_irq_callback_handler() {
     // Disable our interrupts temporarily to avoid re-entry while we scan.
     kscan_direct_interrupt_disable();
 
     data.scan_time = millis();
 
-    // kscan_direct_scan_thread_id = threads.addThread(kscan_direct_read);
+    kscan_direct_scan_thread_id = threads.addThread([]() { kscan_direct_read(); });
 
     // Serial.printf("i %d\n", kscan_direct_scan_thread_id);
-    kscan_direct_er_create_scan_thread.triggerEvent();
+    // kscan_direct_read(true);
 }
 #endif
 
-static void kscan_direct_read_continue() {
-    data.scan_time += config.debounce_scan_period_ms;
-
-    // run the kscan_direct_read function when millis() == data->scan_time
-    kscan_direct_scan_thread_id = threads.addThread([]() {
-        threads.delay(data.scan_time - millis());
-        kscan_direct_read();
-    });
-}
-
-static void kscan_direct_read_end() {
-    #if USE_INTERRUPTS
-    // Return to waiting for an interrupt.
-    kscan_direct_interrupt_enable();
-    #else
-    data.scan_time += config.poll_period_ms;
-
-    // Return to polling slowly.
-    kscan_direct_scan_thread_id = threads.addThread([]() {
-        threads.delay(data.scan_time - millis());
-        kscan_direct_read();
-    });
-    #endif
-}
-
 Threads::Mutex kscan_direct_read_lock; // probably not necessary
-static void kscan_direct_read() {
+static void kscan_direct_read(bool from_irq = false) {
     // Threads::Scope m(kscan_direct_read_lock);
     kscan_direct_read_lock.lock();
-    Serial.println("acquired lock");
+    // Serial.println("acquired lock");
     // Read the inputs.
     // struct kscan_gpio_port_state state = {0};
-
+READ_LOCK_ACQ:
     for(uint8_t i = 0; i < data.inputs.len; i++) {
         const struct kscan_gpio* gpio = &data.inputs.gpios[i];
 
@@ -159,32 +131,49 @@ static void kscan_direct_read() {
     if(continue_scan) {
         // At least one key is pressed or the debouncer has not yet decided if
         // it is pressed. Poll quickly until everything is released.
-        kscan_direct_read_continue();
+        // kscan_direct_read_continue();
+        data.scan_time += config.debounce_scan_period_ms;
+        if(from_irq) {
+            kscan_direct_scan_thread_id = threads.addThread([]() {
+                threads.delay(data.scan_time - millis());
+                kscan_direct_read();
+            });
+        } else {
+            threads.delay(data.scan_time - millis());
+            goto READ_LOCK_ACQ;
+        }
     } else {
         // All keys are released. Return to normal.
-        kscan_direct_read_end();
+        // kscan_direct_read_end();
+        #if USE_INTERRUPTS
+        // Return to waiting for an interrupt.
+        kscan_direct_interrupt_enable();
+        #else
+        data.scan_time += config.poll_period_ms;
+
+        // Return to polling slowly.
+        if(from_irq) {
+            // this case shouldn't ever happen
+            kscan_direct_scan_thread_id = threads.addThread([]() {
+                threads.delay(data.scan_time - millis());
+                kscan_direct_read();
+            });
+        } else {
+            threads.delay(data.scan_time - millis());
+            goto READ_LOCK_ACQ;
+        }
+        #endif
     }
 
     kscan_direct_read_lock.unlock();
-    Serial.println("released lock");
+    // Serial.println("released lock");
 }
 
 void kscan_direct_configure(kscan_callback_t callback) {
     data.callback = callback;
 }
 
-#if USE_INTERRUPTS
-static void kscan_direct_create_scan_thread(EventResponderRef _) {
-    Serial.println("when the thread is created :sus:");
-    threads.addThread(kscan_direct_read);
-    Serial.println("it is")
-}
-#endif
-
 void kscan_direct_enable() {
-    #if USE_INTERRUPTS
-    kscan_direct_er_create_scan_thread.attachInterrupt(kscan_direct_create_scan_thread);
-    #endif
     data.scan_time = millis();
 
     // Read will automatically start interrupts/polling once done.
@@ -193,9 +182,6 @@ void kscan_direct_enable() {
 
 void kscan_direct_disable() {
     threads.kill(kscan_direct_scan_thread_id);
-    #if USE_INTERRUPTS
-    kscan_direct_er_create_scan_thread.detach();
-    #endif
 }
 
 static void kscan_direct_init_input_inst(const struct kscan_gpio* gpio, const int index) {

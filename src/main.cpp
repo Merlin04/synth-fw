@@ -65,10 +65,10 @@ void setup() {
     Serial.println("Yeag!");
     delay(5000);
 
-    for(int i = 0; i < 10; i++) {
-        Serial.println("Yeag!");
-        delay(1000);
-    }
+    // for(int i = 0; i < 5; i++) {
+    //     Serial.println("Yeag!");
+    //     delay(1000);
+    // }
 
     Serial.println("startup");
     Serial.println(CrashReport);
