@@ -7,6 +7,7 @@
 #include <CrashReport.h>
 // #include "kscan/kscan_gpio_matrix.hpp"
 #include "kscan/kscan_gpio_direct.hpp"
+#include "kscan/velocity.hpp"
 #include "relay/relay.hpp"
 
 #define SCREEN_X 320
@@ -81,6 +82,8 @@ void setup() {
         count++;
     });
     kscan_direct_enable();
+
+    test_scheduler();
 
     // kscan_matrix_init();
     // kscan_matrix_configure([](uint32_t row, uint32_t column, bool pressed) {

@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "kscan_config.hpp"
 
 struct kscan_gpio {
     uint8_t pin;
@@ -39,14 +40,6 @@ typedef uint32_t gpio_port_value_t;
 // https://docs.zephyrproject.org/apidoc/2.7.0/group__kscan__interface.html#gab65d45708dba142da2c71aa3debd9480
 typedef void(* kscan_callback_t) (uint8_t row, uint8_t column, bool pressed);
 
-// https://zmk.dev/docs/features/debouncing
-// instant activate
-#define INST_DEBOUNCE_PRESS_MS 0
-#define INST_DEBOUNCE_RELEASE_MS 1
-#define INST_DEBOUNCE_SCAN_PERIOD_MS 1
-#define INST_POLL_PERIOD_MS 10
-
-#define USE_POLLING false
 #define USE_INTERRUPTS (!USE_POLLING)
 
 // expand to the code if use_interrupts is true
@@ -63,3 +56,12 @@ typedef void(* kscan_callback_t) (uint8_t row, uint8_t column, bool pressed);
     } else {                                       \
         intcode;                                   \
     }
+
+#if INST_DIODE_DIR == KSCAN_ROW2COL
+#define COND_DIODE_DIR(row2col_code, col2row_code) row2col_code
+#else
+#define COND_DIODE_DIR(row2col_code, col2row_code) col2row_code
+#endif
+
+#define INST_MATRIX_LEN (INST_ROWS_LEN * INST_COLS_LEN)
+#define INST_INPUTS_LEN COND_DIODE_DIR((INST_COLS_LEN), (INST_ROWS_LEN))

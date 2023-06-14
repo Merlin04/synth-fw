@@ -6,23 +6,12 @@
  */
 
 #include "kscan_gpio_matrix.hpp"
+#include "kscan_config.hpp"
 #include "kscan_gpio.hpp"
 #include "debounce.hpp"
 #include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
-
-#define INST_DIODE_DIR KSCAN_ROW2COL
-#if INST_DIODE_DIR == KSCAN_ROW2COL
-#define COND_DIODE_DIR(row2col_code, col2row_code) row2col_code
-#else
-#define COND_DIODE_DIR(row2col_code, col2row_code) col2row_code
-#endif
-
-#define INST_ROWS_LEN 7
-#define INST_COLS_LEN 9
-#define INST_MATRIX_LEN (INST_ROWS_LEN * INST_COLS_LEN)
-#define INST_INPUTS_LEN COND_DIODE_DIR((INST_COLS_LEN), (INST_ROWS_LEN))
 
 static struct kscan_gpio kscan_matrix_rows[] = {
     // TODO actual values

@@ -9,14 +9,13 @@
  */
 
 #include "kscan_gpio_direct.hpp"
+#include "kscan_config.hpp"
 #include "kscan_gpio.hpp"
 #include "debounce.hpp"
 #include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
 #include "TeensyTimerTool.h"
-
-#define INST_INPUTS_LEN 6
 
 struct kscan_direct_data {
     struct kscan_gpio_list inputs;
@@ -84,7 +83,7 @@ static void kscan_direct_interrupt_disable() {
 #endif
 
 #if USE_INTERRUPTS
-TeensyTimerTool::OneShotTimer kscan_direct_read_timer(TeensyTimerTool::GPT2);
+TeensyTimerTool::OneShotTimer kscan_direct_read_timer(TeensyTimerTool::PIT);
 #endif
 
 #if USE_INTERRUPTS
@@ -102,12 +101,10 @@ static void kscan_direct_read() {
     _kscan_direct_read(false);
 }
 static void _kscan_direct_read(bool from_irq) {
-    // Serial.println("read");
-    //#if USE_INTERRUPTS
-    //uint8_t irq_attempt_counter = 0;
-    //#endif
     // Read the inputs.
+#if USE_POLLING
 KSCAN_DIRECT_READ_START:
+#endif
     for(uint8_t i = 0; i < data.inputs.len; i++) {
         const struct kscan_gpio* gpio = &data.inputs.gpios[i];
 
@@ -124,7 +121,6 @@ KSCAN_DIRECT_READ_START:
     for(uint8_t i = 0; i < data.inputs.len; i++) {
         const struct kscan_gpio* gpio = &data.inputs.gpios[i];
         struct debounce_state* state = &data.pin_state[gpio->index];
-        // Serial.printf("pin %d, index %d\n", gpio->pin, gpio->index);
 
         if(debounce_get_changed(state)) {
             const bool pressed = debounce_is_pressed(state);
@@ -137,11 +133,8 @@ KSCAN_DIRECT_READ_START:
     if(continue_scan) {
         // At least one key is pressed or the debouncer has not yet decided if
         // it is pressed. Poll quickly until everything is released.
-        // kscan_direct_read_continue();
         data.scan_time += config.debounce_scan_period_ms * 1000; // microseconds
         #if USE_INTERRUPTS
-        // if(data.scan_time - micros() < 0) goto KSCAN_DIRECT_READ_START;
-        // Serial.println("trigger");
         kscan_direct_read_timer.trigger(data.scan_time - micros());
         #else
         threads.delay_us(data.scan_time - micros());
@@ -149,10 +142,8 @@ KSCAN_DIRECT_READ_START:
         #endif
     } else {
         // All keys are released. Return to normal.
-        // kscan_direct_read_end();
         #if USE_INTERRUPTS
         // Return to waiting for an interrupt.
-        // Serial.println("end");
         kscan_direct_interrupt_enable();
         #else
         data.scan_time += config.poll_period_ms * 1000;
@@ -162,9 +153,6 @@ KSCAN_DIRECT_READ_START:
         goto KSCAN_DIRECT_READ_START;
         #endif
     }
-
-    // kscan_direct_read_lock.unlock();
-    // Serial.println("released lock");
 }
 
 void kscan_direct_configure(kscan_callback_t callback) {
