@@ -20,27 +20,18 @@ class Scheduler {
 
     void _timer_cb() {
         noInterrupts();
-
-        // debug
-        // Serial.println("yeag");
-        // timer.trigger(1'000'000);
-        // interrupts();
-        // return;
-
         // run the first one in the list
         auto j = jobs.front();
         jobs.pop_front();
-        Serial.printf("timer callback %d %d %d\n", j.param, j.run_at, micros());
-        // work(j.param);
+        // Serial.printf("timer callback %d %d %d\n", j.param, j.run_at, micros());
+        work(j.param);
         if(!jobs.empty()) {
-            Serial.printf("triggering from callback data %d t %d\n", jobs.front().param, jobs.front().run_at - micros());
-            // TeensyTimerTool::errorCode err = timer.trigger(jobs.front().run_at - micros());
-            // Serial.printf("err %d\n", err);
+            // Serial.printf("triggering from callback data %d t %d\n", jobs.front().param, jobs.front().run_at - micros());
             timer.timerChannel->setPeriod(jobs.front().run_at - micros());
-            // TeensyTimerTool::
-            reinterpret_cast/*static_cast*/<TeensyTimerTool::GptChannel *>(timer.timerChannel)->regs->CR |= GPT_CR_EN;
+            reinterpret_cast<TeensyTimerTool::GptChannel *>(timer.timerChannel)->regs->CR |= GPT_CR_EN;
             
         } else {
+            // Serial.println("no more jobs");
             _cb_running = false;
         }
         interrupts();
@@ -48,13 +39,16 @@ class Scheduler {
 
     public:
     Scheduler(WorkFunction work) : work(work) {
+    }
+
+    void init_timer() {
+        // separate so we don't have to call it on construction
+        TeensyTimerTool::attachErrFunc(TeensyTimerTool::ErrorHandler(Serial));
         timer.begin([this]() {
             this->_timer_cb();
         });
-        TeensyTimerTool::attachErrFunc(TeensyTimerTool::ErrorHandler(Serial));
-        auto max_period = timer.getMaxPeriod();
-        Serial.printf("timer max period %f\n", max_period);
-        // timer.begin(this->_timer_cb);
+        // auto max_period = timer.getMaxPeriod();
+        // Serial.printf("timer max period %f\n", max_period);
     }
 
     void schedule(uint32_t delay_us, TParam param) {
@@ -86,9 +80,9 @@ class Scheduler {
         jobs.insert(it, { run_at, param });
         
         noInterrupts();
-        Serial.println("yeag");
+        // Serial.println("yeag");
         if(!_cb_running || isAtFront) {
-            Serial.printf("triggering %d\n", run_at - micros());
+            // Serial.printf("triggering %d\n", run_at - micros());
             _cb_running = true;
             timer.trigger(run_at - micros());
         }
@@ -120,4 +114,4 @@ class Scheduler {
     friend void test_scheduler();
 };
 
-Scheduler<int> scheduler;
+extern Scheduler<int> scheduler;

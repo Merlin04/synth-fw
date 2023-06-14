@@ -19,6 +19,7 @@ void velocity_scheduler_cb(int& i) {
 // simple function to test that scheduling and cancelling jobs works!
 void test_scheduler() {
     Serial.println("starting scheduler test");
+    // Scheduler<int> scheduler(velocity_scheduler_cb);
 
     Serial.println("scheduling 1");
     scheduler.schedule(1000000, 1);

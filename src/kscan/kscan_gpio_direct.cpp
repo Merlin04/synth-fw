@@ -15,7 +15,7 @@
 #include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
-#include "TeensyTimerTool.h"
+#include "scheduler/scheduler.hpp"
 
 struct kscan_direct_data {
     struct kscan_gpio_list inputs;
@@ -59,7 +59,7 @@ static struct kscan_direct_config config = {
 
 volatile int kscan_direct_scan_thread_id;
 
-static void _kscan_direct_read(bool from_irq);
+void _kscan_direct_read(bool from_irq);
 #if USE_INTERRUPTS
 static void kscan_direct_irq_callback_handler();
 #endif
@@ -83,10 +83,6 @@ static void kscan_direct_interrupt_disable() {
 #endif
 
 #if USE_INTERRUPTS
-TeensyTimerTool::OneShotTimer kscan_direct_read_timer(TeensyTimerTool::PIT);
-#endif
-
-#if USE_INTERRUPTS
 static void kscan_direct_irq_callback_handler() {
     // Disable our interrupts temporarily to avoid re-entry while we scan.
     kscan_direct_interrupt_disable();
@@ -97,10 +93,10 @@ static void kscan_direct_irq_callback_handler() {
 }
 #endif
 
-static void kscan_direct_read() {
+void kscan_direct_read() {
     _kscan_direct_read(false);
 }
-static void _kscan_direct_read(bool from_irq) {
+void _kscan_direct_read(bool from_irq) {
     // Read the inputs.
 #if USE_POLLING
 KSCAN_DIRECT_READ_START:
@@ -135,7 +131,8 @@ KSCAN_DIRECT_READ_START:
         // it is pressed. Poll quickly until everything is released.
         data.scan_time += config.debounce_scan_period_ms * 1000; // microseconds
         #if USE_INTERRUPTS
-        kscan_direct_read_timer.trigger(data.scan_time - micros());
+        scheduler.schedule_at(data.scan_time, micros(), -1);
+        // kscan_direct_read_timer.trigger(data.scan_time - micros());
         #else
         threads.delay_us(data.scan_time - micros());
         goto KSCAN_DIRECT_READ_START;
@@ -162,7 +159,7 @@ void kscan_direct_configure(kscan_callback_t callback) {
 void kscan_direct_enable() {
     data.scan_time = micros();
     #if USE_INTERRUPTS
-    kscan_direct_read_timer.begin(kscan_direct_read);
+    // kscan_direct_read_timer.begin(kscan_direct_read);
     // Read will automatically start interrupts/polling once done.
     kscan_direct_read();
     #else

@@ -3,7 +3,7 @@
 #include "kscan/velocity.hpp"
 
 // This is a scheduler instance shared between velocity and kscan_gpio_direct
-Scheduler<int> scheduler([](int& i) {
+Scheduler<int> scheduler = Scheduler<int>([](int& i) {
     if(i < 0) {
         kscan_direct_read();
     } else {

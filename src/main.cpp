@@ -9,6 +9,7 @@
 #include "kscan/kscan_gpio_direct.hpp"
 #include "kscan/velocity.hpp"
 #include "relay/relay.hpp"
+#include "scheduler/scheduler.hpp"
 
 #define SCREEN_X 320
 #define SCREEN_Y 240
@@ -75,6 +76,7 @@ void setup() {
     Serial.println(CrashReport);
 
     threads.setSliceMicros(400); // short slice so it is more responsive - teensy is fast enough :)
+    scheduler.init_timer();
     kscan_direct_init();
     kscan_direct_configure([](uint8_t _, uint8_t sw, bool pressed) {
         // runs in scan thread
