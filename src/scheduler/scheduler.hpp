@@ -3,6 +3,8 @@
 #include "TimerModules/GPT/GPTChannel.h"
 #include <list>
 
+// #define SCHEDULER_DEBUG
+
 // simple scheduler class to allow you to use a single timer to schedule executions of a function with a given parameter of some type
 template<typename TParam>
 class Scheduler {
@@ -23,15 +25,21 @@ class Scheduler {
         // run the first one in the list
         auto j = jobs.front();
         jobs.pop_front();
-        // Serial.printf("timer callback %d %d %d\n", j.param, j.run_at, micros());
+#ifdef SCHEDULER_DEBUG
+        Serial.printf("timer callback %d %d %d\n", j.param, j.run_at, micros());
+#endif
         work(j.param);
         if(!jobs.empty()) {
-            // Serial.printf("triggering from callback data %d t %d\n", jobs.front().param, jobs.front().run_at - micros());
+#ifdef SCHEDULER_DEBUG
+            Serial.printf("triggering from callback data %d t %d\n", jobs.front().param, jobs.front().run_at - micros());
+#endif
             timer.timerChannel->setPeriod(jobs.front().run_at - micros());
             reinterpret_cast<TeensyTimerTool::GptChannel *>(timer.timerChannel)->regs->CR |= GPT_CR_EN;
             
         } else {
-            // Serial.println("no more jobs");
+#ifdef SCHEDULER_DEBUG
+            Serial.println("no more jobs");
+#endif
             _cb_running = false;
         }
         interrupts();
@@ -47,8 +55,10 @@ class Scheduler {
         timer.begin([this]() {
             this->_timer_cb();
         });
-        // auto max_period = timer.getMaxPeriod();
-        // Serial.printf("timer max period %f\n", max_period);
+    #ifdef SCHEDULER_DEBUG
+        auto max_period = timer.getMaxPeriod();
+        Serial.printf("timer max period %f\n", max_period);
+    #endif
     }
 
     void schedule(uint32_t delay_us, TParam param) {
@@ -80,9 +90,10 @@ class Scheduler {
         jobs.insert(it, { run_at, param });
         
         noInterrupts();
-        // Serial.println("yeag");
         if(!_cb_running || isAtFront) {
-            // Serial.printf("triggering %d\n", run_at - micros());
+#ifdef SCHEDULER_DEBUG
+            Serial.printf("triggering %d\n", run_at - micros());
+#endif
             _cb_running = true;
             timer.trigger(run_at - micros());
         }
