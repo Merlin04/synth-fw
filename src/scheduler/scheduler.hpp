@@ -19,11 +19,33 @@ class Scheduler {
     using WorkFunction = void (*)(TParam&);
     volatile WorkFunction work;
     volatile bool _cb_running = false;
+    volatile bool _inside_cb = false;
+
+    TeensyTimerTool::errorCode _triggerTimer(uint32_t t) {
+        // Serial.printf("triggering timer %d\n", t);
+        // if we're inside the _timer_cb, we need to trigger a different way since we can't overwrite interrupt flags
+        if(_inside_cb) {
+            // if(t == 0) {
+            //     Serial.printf("ok sure\n");
+            //     return TeensyTimerTool::errorCode::OK; // we're inside the cb, we'll get to the job right after
+            // }
+            // we'll get to the job right after
+            return TeensyTimerTool::errorCode::OK;
+        } else {
+            if(t == 0) {
+                Serial.printf("aaaaaa\n");
+                t = 1; // one nanosecond won't hurt anyone
+            }
+            return timer.trigger(t);
+        }
+    }
 
     void _timer_cb() {
         noInterrupts();
+        _inside_cb = true;
         // run the first one in the list
         auto j = jobs.front();
+        if(j.param != -1) Serial.printf("timer callback %d %d %d\n", j.param, j.run_at, micros());
         jobs.pop_front();
 #ifdef SCHEDULER_DEBUG
         Serial.printf("timer callback %d %d %d\n", j.param, j.run_at, micros());
@@ -33,15 +55,16 @@ class Scheduler {
 #ifdef SCHEDULER_DEBUG
             Serial.printf("triggering from callback data %d t %d\n", jobs.front().param, jobs.front().run_at - micros());
 #endif
+            // _triggerTimer(jobs.front().run_at - micros());      
             timer.timerChannel->setPeriod(jobs.front().run_at - micros());
             reinterpret_cast<TeensyTimerTool::GptChannel *>(timer.timerChannel)->regs->CR |= GPT_CR_EN;
-            
         } else {
 #ifdef SCHEDULER_DEBUG
             Serial.println("no more jobs");
 #endif
             _cb_running = false;
         }
+        _inside_cb = false;
         interrupts();
     }
 
@@ -88,6 +111,10 @@ class Scheduler {
         }
         bool isAtFront = it == jobs.begin();
         jobs.insert(it, { run_at, param });
+
+        if(param != -1) {
+            Serial.printf("schedule %d %d %d %d\n", param, run_at, micros(), run_at - micros());
+        }
         
         noInterrupts();
         if(!_cb_running || isAtFront) {
@@ -95,27 +122,39 @@ class Scheduler {
             Serial.printf("triggering %d\n", run_at - micros());
 #endif
             _cb_running = true;
-            timer.trigger(run_at - micros());
+            auto t = run_at - micros();
+            auto err = _triggerTimer(t);
+            if(err != TeensyTimerTool::errorCode::OK) {
+                // print params
+                Serial.printf("schedule error %d %d %d %d %d\n", err, run_at, micros(), t, param);
+            }
         }
         interrupts();
     }
 
-    void cancel(TParam param) {
+    bool cancel(TParam param) {
         noInterrupts();
+        bool found = false;
         for(auto it = jobs.begin(); it != jobs.end(); it++) {
             if(it->param == param) {
+                found = true;
                 jobs.erase(it);
                 if(_cb_running && it == jobs.begin()) {
                     timer.stop();
                     _cb_running = false;
                     if(!jobs.empty()) {
-                        timer.trigger(jobs.front().run_at - micros());
+                        auto err = _triggerTimer(jobs.front().run_at - micros());
+                        if(err != TeensyTimerTool::errorCode::OK) {
+                            // print params
+                            Serial.printf("cancel error %d %d %d %d %d\n", err, jobs.front().run_at, micros(), jobs.front().run_at - micros(), jobs.front().param);
+                        }
                     }
                 }
                 break;
             }
         }
         interrupts();
+        return found;
     }
 
     ~Scheduler() {
