@@ -8,7 +8,6 @@
 
 #include "relay.hpp"
 #include <stack>
-#include <vector>
 #include <Arduino.h>
 
 namespace Re {
@@ -23,28 +22,28 @@ namespace Re {
 
     RGB black = {0, 0, 0};
     
-    void drawHorizontalLine(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t length, uint16_t color) {
-        auto offset = y * buf->width + x;
-        for (uint16_t i = offset; i < offset + length; i++) {
-            buf->pixels[i] = color;
-        }
-    }
-
-    void drawVerticalLine(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t length, uint16_t color) {
-        auto offset = y * buf->width + x;
-        for (uint16_t i = offset; i < offset + length * buf->width; i += buf->width) {
-            buf->pixels[i] = color;
-        }
-    }
-
-    void fillRect(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
-        auto offset = y * buf->width + x;
-        for (uint16_t i = offset; i < offset + h * buf->width; i += buf->width) {
-            for (uint16_t j = i; j < i + w; j++) {
-                buf->pixels[j] = color;
-            }
-        }
-    }
+//    void drawHorizontalLine(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t length, uint16_t color) {
+//        auto offset = y * buf->width + x;
+//        for (uint16_t i = offset; i < offset + length; i++) {
+//            buf->pixels[i] = color;
+//        }
+//    }
+//
+//    void drawVerticalLine(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t length, uint16_t color) {
+//        auto offset = y * buf->width + x;
+//        for (uint16_t i = offset; i < offset + length * buf->width; i += buf->width) {
+//            buf->pixels[i] = color;
+//        }
+//    }
+//
+//    void fillRect(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+//        auto offset = y * buf->width + x;
+//        for (uint16_t i = offset; i < offset + h * buf->width; i += buf->width) {
+//            for (uint16_t j = i; j < i + w; j++) {
+//                buf->pixels[j] = color;
+//            }
+//        }
+//    }
 
     void Box::_init() {
         // Run on object instantiation.
@@ -102,15 +101,15 @@ namespace Re {
         return this;
     }
 
-    void Box::render(DisplayBuffer16* buffer) {
+    void Box::render(ST7789_t3* tft) {
         Serial.println("DEBUG calculate layout");
-        Serial.printf("DEBUG width %d height %d\n", buffer->width, buffer->height);
-        YGNodeCalculateLayout(_node, buffer->width, buffer->height, YGDirectionLTR);
+        Serial.printf("DEBUG width %d height %d\n", tft->width(), tft->height());
+        YGNodeCalculateLayout(_node, tft->width(), tft->height(), YGDirectionLTR);
         Serial.println("DEBUG renderself");
-        _renderSelf(buffer);
+        _renderSelf(tft);
     }
 
-    void Box::_renderSelf(DisplayBuffer16* buffer) {
+    void Box::_renderSelf(ST7789_t3* tft) {
         Serial.println("DEBUG renderself");
         auto left = YGNodeLayoutGetLeft(_node);
         auto top = YGNodeLayoutGetTop(_node);
@@ -121,9 +120,7 @@ namespace Re {
         // background
         if(_bg != nullptr) {
             Serial.println("drawing background");
-            fillRect(
-                buffer, left, top, width, height, _bg->to565()
-            );
+            tft->fillRect(left, top, width, height, _bg->to565());
         }
         Serial.println("DEBUG draw border");
 
@@ -140,16 +137,16 @@ namespace Re {
             }
 
             if(borderLeft > 0) {
-                fillRect(buffer, left, top, borderLeft, height, _border_color->to565());
+                tft->fillRect(left, top, borderLeft, height, _border_color->to565());
             }
             if(borderRight > 0) {
-                fillRect(buffer, left + width - borderRight, top, borderRight, height, _border_color->to565());
+                tft->fillRect(left + width - borderRight, top, borderRight, height, _border_color->to565());
             }
             if(borderTop > 0) {
-                fillRect(buffer, left, top, width, borderTop, _border_color->to565());
+                tft->fillRect(left, top, width, borderTop, _border_color->to565());
             }
             if(borderBottom > 0) {
-                fillRect(buffer, left, top + height - borderBottom, width, borderBottom, _border_color->to565());
+                tft->fillRect(left, top + height - borderBottom, width, borderBottom, _border_color->to565());
             }
         }
 
@@ -160,7 +157,7 @@ namespace Re {
             case BOXES:
                 if(_children != nullptr) {
                     for(auto child : *_children) {
-                        child->_renderSelf(buffer);
+                        child->_renderSelf(tft);
                     }
                 }
                 break;
@@ -169,11 +166,13 @@ namespace Re {
                     // default to black
                     _color = &black;
                 }
-                buffer->drawString(_text, 9 /* TODO: font size */, left + YGNodeLayoutGetPadding(_node, YGEdgeLeft), top + YGNodeLayoutGetPadding(_node, YGEdgeTop), _color->to565());
+                // TODO: font size
+                tft->setTextColor(_color->to565());
+                tft->drawString1(const_cast<char *>(_text), strlen(_text), left + YGNodeLayoutGetPadding(_node, YGEdgeLeft), top + YGNodeLayoutGetPadding(_node, YGEdgeTop));
                 break;
             case PIXELS:
                 if(_pixels_cb != nullptr) {
-                    _pixels_cb(left, top, width, height, buffer);
+                    _pixels_cb(left, top, width, height, tft);
                 }
                 break;
         }

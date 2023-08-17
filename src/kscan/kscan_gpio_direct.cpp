@@ -12,10 +12,9 @@
 #include "kscan_config.hpp"
 #include "kscan_gpio.hpp"
 #include "debounce.hpp"
-#include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
-#include "scheduler/scheduler.hpp"
+#include "scheduler/scheduler_thread.hpp"
 
 struct kscan_direct_data {
     struct kscan_gpio_list inputs;

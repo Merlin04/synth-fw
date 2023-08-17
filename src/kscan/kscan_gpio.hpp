@@ -6,9 +6,8 @@
 
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
 #include "kscan_config.hpp"
 
 struct kscan_gpio {

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <list>
+#include <ST7789_t3.h>
 
 #include "yoga/Yoga.h"
 
@@ -63,15 +64,8 @@ namespace Re {
         RGB(RGB* rgb) : r(rgb->r), g(rgb->g), b(rgb->b) {}
     };
 
-    struct DisplayBuffer16 {
-        uint16_t* pixels = nullptr;
-        uint16_t width = 0, height = 0;
-
-        void (*drawString)(const char* text, uint8_t size, uint16_t x, uint16_t y, uint16_t color);
-    };
-
     // pixels callback function - it takes an x, y, width, height, and buffer pointer, and returns void
-    typedef void (*pixels_cb)(uint16_t, uint16_t, uint16_t, uint16_t, DisplayBuffer16*);
+    typedef void (*pixels_cb)(uint16_t, uint16_t, uint16_t, uint16_t, ST7789_t3*);
 
     struct BoundingBox {
         int16_t x, y, w, h;
@@ -109,7 +103,7 @@ namespace Re {
         }
 
         void _init();
-        void _renderSelf(DisplayBuffer16* buffer);
+        void _renderSelf(ST7789_t3* tft);
 
         public:
 
@@ -168,7 +162,8 @@ namespace Re {
 
         BOX_SETTERS
 
-        void render(DisplayBuffer16* buffer);
+//        void render(DisplayBuffer16* buffer);
+        void render(ST7789_t3* tft);
         
         Box* text(const char* text);
         Box* pixels(pixels_cb cb);
@@ -179,4 +174,15 @@ namespace Re {
 
     Box* box();
     void end();
+
+    //    struct DisplayBuffer16 {
+//        uint16_t* pixels = nullptr;
+//        uint16_t width = 0, height = 0;
+//
+//        void (*drawString)(const char* text, uint8_t size, uint16_t x, uint16_t y, uint16_t color);
+//    };
+
+//    class DisplayST7789 {
+//        ST7789_t3 tft;
+//    };
 }

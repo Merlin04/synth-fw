@@ -11,8 +11,7 @@
 
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <cstdint>
 
 #define DEBOUNCE_COUNTER_BITS 14
 #define DEBOUNCE_COUNTER_MAX ((1 << DEBOUNCE_COUNTER_BITS) - 1)
@@ -38,7 +37,7 @@ struct debounce_config {
  * @param elapsed_ms Time elapsed since the previous update in milliseconds.
  * @param config Debounce settings.
  */
-void debounce_update(struct debounce_state *state, const bool active, const int elapsed_ms,
+void debounce_update(struct debounce_state *state, bool active, int elapsed_ms,
                      const struct debounce_config *config);
 
 /**

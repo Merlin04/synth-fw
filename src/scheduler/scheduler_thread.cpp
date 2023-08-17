@@ -1,9 +1,10 @@
-#include "scheduler.hpp"
+#include "scheduler_thread.hpp"
 #include "kscan/kscan_gpio_direct.hpp"
 #include "kscan/velocity.hpp"
 
 // This is a scheduler instance shared between velocity and kscan_gpio_direct
-Scheduler<int> scheduler = Scheduler<int>([](int& i) {
+// (shared because why not, saves a thread)
+SchedulerThread<int> scheduler = SchedulerThread<int>([](int& i) {
     if(i < 0) {
         kscan_direct_read();
     } else {

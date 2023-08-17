@@ -1,39 +1,9 @@
 #include "velocity.hpp"
 #include "kscan_config.hpp"
 #include "kscan_gpio.hpp"
-#include "scheduler/scheduler.hpp"
+#include "scheduler/scheduler_thread.hpp"
 
 // simple function to test that scheduling and cancelling jobs works!
-void test_scheduler() {
-    Serial.println("starting scheduler test");
-    // Scheduler<int> scheduler(velocity_scheduler_cb);
-
-    Serial.println("scheduling 1");
-    scheduler.schedule(1000000, 1);
-    Serial.println("scheduling 2");
-    scheduler.schedule(2000000, 2);
-    Serial.println("scheduling 3");
-    scheduler.schedule(3000000, 3);
-    Serial.println("scheduling 4");
-    scheduler.schedule(4000000, 4);
-
-    // debug: print the jobs
-    for(auto j : scheduler.jobs) {
-        Serial.printf("job p: %d r: %d\n", j.param, j.run_at);
-    }
-
-    Serial.println("cancelling 2");
-    scheduler.cancel(2);
-    Serial.println("delaying");
-
-    delay(1000);
-    Serial.println("scheduling 5");
-    scheduler.schedule(1000000, 5);
-    Serial.println("delaying");
-
-    delay(1'000'000);
-    Serial.println("ending scheduler test");
-}
 
 struct KeyState {
     uint32_t time = 0;

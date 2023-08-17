@@ -1,5 +1,5 @@
 #pragma once
-#include <stdint.h>
+#include <cstdint>
 
 typedef void(* velocity_callback_t) (uint8_t row, uint8_t column, int8_t velocity, bool pressed);
 

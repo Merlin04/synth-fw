@@ -9,7 +9,6 @@
 #include "kscan_config.hpp"
 #include "kscan_gpio.hpp"
 #include "debounce.hpp"
-#include <stddef.h>
 #include <Arduino.h>
 #include <TeensyThreads.h>
 
