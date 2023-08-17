@@ -30,31 +30,10 @@ struct kscan_gpio_list {
 
 typedef uint32_t gpio_port_value_t;
 
-// struct kscan_gpio_port_state {
-//     const struct device *port;
-//     gpio_port_value_t value;
-// };
 
 // from Zephyr's source (modified to remove device)
 // https://docs.zephyrproject.org/apidoc/2.7.0/group__kscan__interface.html#gab65d45708dba142da2c71aa3debd9480
 typedef void(* kscan_callback_t) (uint8_t row, uint8_t column, bool pressed);
-
-#define USE_INTERRUPTS (!USE_POLLING)
-
-// expand to the code if use_interrupts is true
-// (not using an if statement, needs to be entirely preprocessor)
-#if USE_POLLING == false
-#define COND_INTERRUPTS(code) code
-#else
-#define COND_INTERRUPTS(code)
-#endif
-
-#define COND_POLL_OR_INTERRUPTS(pollcode, intcode) \
-    if (USE_POLLING) {                             \
-        pollcode;                                  \
-    } else {                                       \
-        intcode;                                   \
-    }
 
 #if INST_DIODE_DIR == KSCAN_ROW2COL
 #define COND_DIODE_DIR(row2col_code, col2row_code) row2col_code

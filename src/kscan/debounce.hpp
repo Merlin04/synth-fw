@@ -22,12 +22,12 @@ struct debounce_state {
     uint16_t counter : DEBOUNCE_COUNTER_BITS;
 };
 
-struct debounce_config {
-    /** Duration a switch must be pressed to latch as pressed. */
-    uint32_t debounce_press_ms;
-    /** Duration a switch must be released to latch as released. */
-    uint32_t debounce_release_ms;
-};
+//struct debounce_config {
+//    /** Duration a switch must be pressed to latch as pressed. */
+//    uint32_t debounce_press_ms;
+//    /** Duration a switch must be released to latch as released. */
+//    uint32_t debounce_release_ms;
+//};
 
 /**
  * Debounces one switch.
@@ -37,8 +37,7 @@ struct debounce_config {
  * @param elapsed_ms Time elapsed since the previous update in milliseconds.
  * @param config Debounce settings.
  */
-void debounce_update(struct debounce_state *state, bool active, int elapsed_ms,
-                     const struct debounce_config *config);
+void debounce_update(struct debounce_state *state, bool active, int elapsed_ms);
 
 /**
  * @returns whether the switch is either latched as pressed or it is potentially

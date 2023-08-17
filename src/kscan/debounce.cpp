@@ -6,9 +6,10 @@
  */
 
 #include "debounce.hpp"
+#include "kscan_config.hpp"
 
-static uint32_t get_threshold(const struct debounce_state* state, const struct debounce_config* config) {
-    return state->pressed ? config->debounce_release_ms : config->debounce_press_ms;
+static uint32_t get_threshold(const struct debounce_state* state) {
+    return state->pressed ? INST_DEBOUNCE_RELEASE_MS : INST_DEBOUNCE_PRESS_MS;
 }
 
 static void increment_counter(struct debounce_state* state, const int elapsed_ms) {
@@ -27,7 +28,7 @@ static void decrement_counter(struct debounce_state* state, const int elapsed_ms
     }
 }
 
-void debounce_update(struct debounce_state* state, const bool active, const int elapsed_ms, const struct debounce_config* config) {
+void debounce_update(struct debounce_state* state, const bool active, const int elapsed_ms) {
     // This uses a variation of the integrator debouncing described at
     // https://www.kennethkuhn.com/electronics/debounce.c
     // Every update where "active" does not match the current state, we increment
@@ -40,7 +41,7 @@ void debounce_update(struct debounce_state* state, const bool active, const int 
         return;
     }
 
-    const uint32_t flip_threshold = get_threshold(state, config);
+    const uint32_t flip_threshold = get_threshold(state);
 
     if(state->counter < flip_threshold) {
         increment_counter(state, elapsed_ms);

@@ -2,7 +2,6 @@
 #include "kscan_gpio.hpp"
 
 void kscan_direct_enable();
-void kscan_direct_disable();
 void kscan_direct_init();
 void kscan_direct_configure(kscan_callback_t callback);
 
