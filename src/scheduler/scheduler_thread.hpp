@@ -6,9 +6,12 @@
 #include <TeensyThreads.h>
 #include <Arduino.h>
 #include <list>
+#include "kscan/kscan_gpio_matrix.hpp"
+#include "kscan/velocity.hpp"
+#include "util/thread.hpp"
 
 template<typename TParam>
-class SchedulerThread {
+class SchedulerThread : public Thread<SchedulerThread<TParam>> {
 private:
     struct Job {
         uint32_t run_at;
@@ -63,26 +66,38 @@ public:
     }
 
 private:
-    [[noreturn]] static void thread_fn(void* a) {
-        auto pThis = static_cast<SchedulerThread<TParam>*>(a);
+    [[noreturn]] void thread_fn() {
         while(true) {
-            pThis->jobs_mutex.lock();
-            auto j = pThis->jobs.front();
+            jobs_mutex.lock();
+            auto j = jobs.front();
             if(j.run_at - micros() <= 0) {
-                pThis->jobs.pop_front();
-                pThis->jobs_mutex.unlock();
-                pThis->work(j.param);
+                jobs.pop_front();
+                jobs_mutex.unlock();
+                work(j.param);
             } else {
-                pThis->jobs_mutex.unlock();
+                jobs_mutex.unlock();
                 Threads::yield(); // something isn't going to be added during this thread's execution
             }
         }
     }
+    friend class Thread<SchedulerThread<TParam>>;
+
+    void thread_init() {
+        Thread<SchedulerThread<TParam>>::thread_init();
+    }
 
 public:
     void init() {
-        threads.addThread(thread_fn, this);
+        thread_init();
     }
 };
 
-extern SchedulerThread<int> scheduler;
+// This is a scheduler instance shared between velocity and kscan_gpio_direct
+// (shared because why not, saves a thread)
+inline SchedulerThread<int> scheduler = SchedulerThread<int>([](int& i) {
+    if(i < 0) {
+        kscan_matrix_read();
+    } else {
+        velocity_scheduler_cb(i);
+    }
+});

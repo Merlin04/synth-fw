@@ -7,6 +7,8 @@
 #include "kscan/velocity.hpp"
 #include "scheduler/scheduler_thread.hpp"
 #include "ui/ui.hpp"
+#include "hardware/i2c_mp.hpp"
+#include "hardware/encoder.hpp"
 
 uint16_t count = 0;
 
@@ -24,6 +26,9 @@ void setup() {
 
     threads.setSliceMicros(400); // short slice so it is more responsive - teensy is fast enough :)
     scheduler.init();
+    Wire.begin();
+    i2c_mp_init();
+    encoder_init();
     kscan_matrix_init();
     // kscan_direct_configure([](uint8_t _, uint8_t sw, bool pressed) {
     //     // runs in scan thread
