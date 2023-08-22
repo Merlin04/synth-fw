@@ -10,16 +10,19 @@
 //#define OLED_0_CHAN 5
 //#define OLED_1_CHAN 6
 
-#define TC9548A_ADDR 0x70
+// wire inst corresponding to i2c pins used for multiplexer (16/17)
 
-#define SSD1306_ADDR 0x3C
+#define TC9548A_ADDR 0x70
 
 uint8_t cur = 0b00100001;
 
 void tca_write(uint8_t bitmask) {
-    Wire.beginTransmission(TC9548A_ADDR);
-    Wire.write(bitmask);
-    Wire.endTransmission();
+    MPWire.beginTransmission(TC9548A_ADDR);
+    MPWire.write(bitmask);
+    auto res = MPWire.endTransmission();
+    if(res != 0) {
+        Serial.printf("ERR: i2c error in tca_write: %d\n", res);
+    }
 }
 
 void select_enc(uint8_t enc_index) {

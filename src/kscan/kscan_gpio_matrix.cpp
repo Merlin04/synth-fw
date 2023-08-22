@@ -24,27 +24,31 @@ struct kscan_matrix_data {
 };
 
 static struct kscan_gpio kscan_matrix_rows[] = {
-        // TODO actual values
-        { .pin = 5, .index = 0},
-        { .pin = 6, .index = 1},
-        { .pin = 7, .index = 2},
-        { .pin = 8, .index = 3},
-        { .pin = 9, .index = 4},
-        { .pin = 10, .index = 5},
-        { .pin = 11, .index = 6}
+        { .pin = 35, .index = 0 },
+        { .pin = 36, .index = 1 },
+        { .pin = 37, .index = 2 },
+        { .pin = 38, .index = 3 },
+        { .pin = 39, .index = 4 },
+        { .pin = 40, .index = 5 },
+        { .pin = 41, .index = 6 },
+        { .pin = 14, .index = 7 },
+        { .pin = 15, .index = 8 },
+        { .pin = 25, .index = 9 },
+        { .pin = 24, .index = 10 },
+        { .pin = 12, .index = 11 },
+        { .pin = 7, .index = 12 }
 };
 
 static struct kscan_gpio kscan_matrix_cols[] = {
-        // TODO actual values
-        { .pin = 12, .index = 0 },
-        { .pin = 13, .index = 1 },
-        { .pin = 14, .index = 2 },
-        { .pin = 15, .index = 3 },
-        { .pin = 16, .index = 4 },
-        { .pin = 17, .index = 5 },
-        { .pin = 18, .index = 6 },
-        { .pin = 19, .index = 7 },
-        { .pin = 20, .index = 8 }
+        { .pin = 32, .index = 0 },
+        { .pin = 31, .index = 1 },
+        { .pin = 30, .index = 2 },
+        { .pin = 29, .index = 3 },
+        { .pin = 28, .index = 4 },
+        { .pin = 27, .index = 5 },
+        { .pin = 26, .index = 6 },
+        { .pin = 33, .index = 7 },
+        { .pin = 34, .index = 8 }
 };
 
 static struct debounce_state kscan_matrix_state[INST_MATRIX_LEN];

@@ -1,0 +1,38 @@
+#pragma once
+
+#include <utility>
+#include <forward_list>
+
+template<typename T>
+class EventDispatcher {
+private:
+    using Listener = std::pair<T, void(*)()>;
+    std::forward_list<Listener> listeners = std::forward_list<Listener>();
+
+public:
+    void dispatch(const T* events) {
+        for (auto& listener : listeners) {
+            for (auto& event : events) {
+                if (listener.first == event) {
+                    listener.second();
+                }
+            }
+        }
+    }
+
+    void add_listener(T event, void(*fn)()) {
+        listeners.push_front(Listener(event, fn));
+    }
+
+    void remove_listener(T event, void(*fn)()) {
+        // find the listener and remove it
+        auto prev = listeners.before_begin();
+        for (auto it = listeners.begin(); it != listeners.end(); it++) {
+            if (it->first == event && it->second == fn) {
+                listeners.erase_after(prev);
+                return;
+            }
+            prev = it;
+        }
+    }
+};

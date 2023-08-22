@@ -2,6 +2,7 @@
 #include "kscan_config.hpp"
 #include "kscan_gpio.hpp"
 #include "scheduler/scheduler_thread.hpp"
+#include "hardware/ctrl_keys.hpp"
 
 // simple function to test that scheduling and cancelling jobs works!
 
@@ -22,7 +23,8 @@ void velocity_configure(velocity_callback_t callback) {
 
 enum KeyType {
     KEY_TYPE_UPPER,
-    KEY_TYPE_LOWER
+    KEY_TYPE_LOWER,
+    KEY_TYPE_CTRL
 };
 
 #if INST_ROWS_LEN == 1
@@ -55,7 +57,7 @@ static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* ou
 }
 #else
 static KeyType key_type(uint8_t row, uint8_t column) {
-    return row % 2 == 0 ? KEY_TYPE_UPPER : KEY_TYPE_LOWER;
+    return row == 12 ? KEY_TYPE_CTRL : row % 2 == 0 ? KEY_TYPE_UPPER : KEY_TYPE_LOWER;
 }
 static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* out_c) {
     *out_r = row / 2;
@@ -89,6 +91,12 @@ void velocity_scheduler_cb(int& index) {
 
 void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
     KeyType type = key_type(row, column);
+    if(type == KEY_TYPE_CTRL) {
+        auto key = static_cast<CtrlKey>(column);
+        if(pressed) ctrl_keys_evt.emit(key);
+        return;
+    }
+
     uint8_t r, c;
     get_key_pos(row, column, &r, &c);
     uint8_t index = r * INST_COLS_LEN + c;

@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include "../util/thread.hpp"
 #include "i2c_mp.hpp"
+#include "util/event.hpp"
 
 constexpr uint8_t AS5600_ADDR = 0x36;
 
@@ -26,32 +27,39 @@ private:
         Threads::Scope m(i2c_mutex);
 
         select_enc(index);
-        Wire.beginTransmission(AS5600_ADDR);
-        Wire.write(reg);
-        Wire.endTransmission();
+        MPWire.beginTransmission(AS5600_ADDR);
+        MPWire.write(reg);
+        auto r = MPWire.endTransmission();
+        if(r != 0) {
+            Serial.printf("ERR: i2c error on encoder %d: %d\n", index, r);
+        }
 
-        Wire.requestFrom(AS5600_ADDR, (uint8_t)1);
-        return Wire.read();
+        MPWire.requestFrom(AS5600_ADDR, (uint8_t)1);
+        return MPWire.read();
     }
 
     [[nodiscard]] uint16_t read_register_16(uint8_t reg) const {
         Threads::Scope m(i2c_mutex);
 
         select_enc(index);
-        Wire.beginTransmission(AS5600_ADDR);
-        Wire.write(reg);
-        Wire.endTransmission();
+        MPWire.beginTransmission(AS5600_ADDR);
+        MPWire.write(reg);
+        auto r = MPWire.endTransmission();
+        if(r != 0) {
+            Serial.printf("ERR: i2c error on encoder %d: %d\n", index, r);
+        }
 
-        Wire.requestFrom(AS5600_ADDR, (uint8_t)2);
-        uint16_t val = Wire.read();
+        MPWire.requestFrom(AS5600_ADDR, (uint8_t)2);
+        uint16_t val = MPWire.read();
         val <<= 8;
-        val |= Wire.read();
+        val |= MPWire.read();
         return val;
     }
 
     // read a value from 0 to 4095 representing the current angle of the encoder
     [[nodiscard]] uint16_t read_angle() const {
-        return read_register_16(AS5600_OUT_ANGLE) & 0x0FFF;
+        uint16_t r = read_register_16(AS5600_OUT_ANGLE) & 0x0FFF;
+        return r;
     }
 
     [[noreturn]] void thread_fn() {
@@ -92,7 +100,10 @@ public:
         thread_init();
 
         auto status = read_register(AS5600_STATUS);
-        if((status & AS5600_MAGNET_DETECT) > 1) {
+//        Serial.printf("debug status: %02x\n", status);
+        prev_angle = read_angle();
+
+        if((status & AS5600_MAGNET_DETECT) <= 1) {
             Serial.printf("ERR: no magnet detected for encoder %d\n", index);
             return false;
         }
@@ -104,8 +115,6 @@ public:
             Serial.printf("ERR: magnet too weak for encoder %d\n", index);
             return false;
         }
-
-        prev_angle = read_angle();
 
         return true;
     }
@@ -123,8 +132,11 @@ inline auto enc_2 = Encoder(2, [](int16_t incs) {
 inline auto enc_3 = Encoder(3, [](int16_t incs) {
     Serial.printf("enc 3: %d\n", incs);
 });
+
+inline auto enc_ctrl_evt = DispatcherEvent<int16_t>();
 inline auto enc_ctrl = Encoder(4, 24, [](int16_t incs) {
     Serial.printf("enc ctrl: %d\n", incs);
+    enc_ctrl_evt.emit(incs);
 });
 
 void encoder_init();
