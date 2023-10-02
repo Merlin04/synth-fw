@@ -12,6 +12,8 @@
 #include <Arduino.h>
 #include "scheduler/scheduler_thread.hpp"
 
+#define KSCAN_MATRIX_DEBUG
+
 struct kscan_matrix_data {
     struct kscan_gpio_list inputs;
     struct kscan_gpio_list outputs;
@@ -54,8 +56,8 @@ static struct kscan_gpio kscan_matrix_cols[] = {
 static struct debounce_state kscan_matrix_state[INST_MATRIX_LEN];
 
 volatile static struct kscan_matrix_data data = {
-    .inputs = KSCAN_GPIO_LIST(COND_DIODE_DIR((kscan_matrix_cols), (kscan_matrix_rows))),
-    .outputs = KSCAN_GPIO_LIST(COND_DIODE_DIR((kscan_matrix_rows), (kscan_matrix_cols))),
+    .inputs = KSCAN_GPIO_LIST(COND_DIODE_DIR((kscan_matrix_rows), (kscan_matrix_cols))),
+    .outputs = KSCAN_GPIO_LIST(COND_DIODE_DIR((kscan_matrix_cols), (kscan_matrix_rows))),
     .matrix_state = kscan_matrix_state
 };
 
@@ -63,6 +65,16 @@ void _kscan_matrix_read(bool from_irq);
 static void kscan_matrix_irq_callback_handler();
 
 static void kscan_matrix_interrupt_enable() {
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.println("kscan_matrix_interrupt_enable");
+#endif
+    // write all the outputs high so we get interrupts
+    // see https://www.infineon.com/dgdl/Infineon-AN2034_PSoC_1_Reading_Matrix_and_Common_Bus_Keypads-ApplicationNotes-v07_00-EN.pdf?fileId=8ac78c8c7cdc391c017d073254b85689
+    for(uint8_t i = 0; i < data.outputs.len; i++) {
+        const struct kscan_gpio* gpio = &data.outputs.gpios[i];
+        digitalWriteFast(gpio->pin, 1);
+    }
+
     for(uint8_t i = 0; i < data.inputs.len; i++) {
         const struct kscan_gpio* gpio = &data.inputs.gpios[i];
         attachInterrupt(gpio->pin, kscan_matrix_irq_callback_handler, RISING);
@@ -77,6 +89,9 @@ static void kscan_matrix_interrupt_disable() {
 }
 
 static void kscan_matrix_irq_callback_handler() {
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.println("kscan_matrix_irq_callback_handler");
+#endif
     // Disable our interrupts temporarily to avoid re-entry while we scan.
     kscan_matrix_interrupt_disable();
 
@@ -100,12 +115,21 @@ void kscan_matrix_read() {
     _kscan_matrix_read(false);
 }
 void _kscan_matrix_read(bool from_irq) {
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.println("_kscan_matrix_read");
+#endif
     // Scan the matrix.
     for(uint8_t i = 0; i < data.outputs.len; i++) {
+#ifdef KSCAN_MATRIX_DEBUG
+//        Serial.printf("i: %d\n", i);
+#endif
         const struct kscan_gpio* out_gpio = &data.outputs.gpios[i];
         digitalWriteFast(out_gpio->pin, 1);
 
-        for(uint8_t j = 0; j < data.inputs.len; i++) {
+        for(uint8_t j = 0; j < data.inputs.len; j++) {
+#ifdef KSCAN_MATRIX_DEBUG
+//            Serial.printf("j: %d\n", j);
+#endif
             const struct kscan_gpio* in_gpio = &data.inputs.gpios[j];
 
             const uint8_t index = state_index_io(in_gpio->index, out_gpio->index);
@@ -116,6 +140,9 @@ void _kscan_matrix_read(bool from_irq) {
 
         digitalWriteFast(out_gpio->pin, 0);
     }
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.println("_kscan_matrix_read scan done");
+#endif
 
     // Process the new state.
     bool continue_scan = from_irq; // sometimes an interrupt will be triggered but the switch will jitter a bit and seem like it wasn't pressed
@@ -136,12 +163,22 @@ void _kscan_matrix_read(bool from_irq) {
         }
     }
 
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.println("_kscan_matrix_read process done");
+#endif
+
     if(continue_scan) {
         // At least one key is pressed or the debouncer has not yet decided if
         // it is pressed. Poll quickly until everything is released.
         data.scan_time += INST_DEBOUNCE_SCAN_PERIOD_MS * 1000; // microseconds
+#ifdef KSCAN_MATRIX_DEBUG
+        Serial.printf("continue_scan: %d, data.scan_time: %d, micros(): %d\n", continue_scan, data.scan_time, micros());
+#endif
         scheduler.schedule_at(data.scan_time, micros(), -1);
     } else {
+#ifdef KSCAN_MATRIX_DEBUG
+        Serial.println("continue_scan: false");
+#endif
         // All keys are released. Return to normal.
         // Return to waiting for an interrupt.
         kscan_matrix_interrupt_enable();
@@ -153,6 +190,9 @@ void kscan_matrix_configure(kscan_callback_t callback) {
 }
 
 void kscan_matrix_enable() {
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.println("kscan_matrix_enable");
+#endif
     data.scan_time = micros();
     // Read will automatically start interrupts once done.
     kscan_matrix_read();

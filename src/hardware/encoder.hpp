@@ -5,6 +5,8 @@
 #include "i2c_mp.hpp"
 #include "util/event.hpp"
 
+#define ENCODER_DEBUG
+
 constexpr uint8_t AS5600_ADDR = 0x36;
 
 constexpr uint8_t AS5600_STATUS = 0x0B;
@@ -97,10 +99,15 @@ public:
     }
 
     bool init() {
+#ifdef ENCODER_DEBUG
+        Serial.printf("encoder %d: init\n", index);
+#endif
         thread_init();
 
         auto status = read_register(AS5600_STATUS);
-//        Serial.printf("debug status: %02x\n", status);
+#ifdef ENCODER_DEBUG
+        Serial.printf("debug status: %02x\n", status);
+#endif
         prev_angle = read_angle();
 
         if((status & AS5600_MAGNET_DETECT) <= 1) {

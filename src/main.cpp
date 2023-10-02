@@ -1,3 +1,5 @@
+//#define I2C_SCAN
+
 #include <Arduino.h>
 #include <Adafruit_GFX.h> // needs to be included for build to work for some reason
 #include <TeensyThreads.h>
@@ -6,20 +8,25 @@ ThreadWrap(Serial, SerialWrapped)
 #define Serial ThreadClone(SerialWrapped)
 
 #include <CrashReport.h>
-//#include "kscan/kscan_gpio_matrix.hpp"
-//#include "kscan/kscan_gpio_direct.hpp"
-//#include "kscan/velocity.hpp"
+#include "kscan/kscan_gpio_matrix.hpp"
+#include "kscan/velocity.hpp"
 #include "scheduler/scheduler_thread.hpp"
-//#include "ui/ui.hpp"
+#include "ui/ui.hpp"
 #include "hardware/i2c_mp.hpp"
 #include "hardware/encoder.hpp"
-//#include "hardware/oled.hpp"
+#include "hardware/oled.hpp"
+#include "hardware/ctrl_keys.hpp"
+
+#ifdef I2C_SCAN
+#include "hardware/i2c_scan.hpp"
+#endif
+//#include "hardware/files.hpp"
 
 void setup() {
 //    Serial.println("Yeag!");
 //    delay(5000);
 
-     for(int i = 0; i < 2; i++) {
+     for(int i = 0; i < 5; i++) {
          Serial.println("Yeag!");
          delay(1000);
      }
@@ -32,17 +39,29 @@ void setup() {
     scheduler.init();
 
     MPWire.begin();
+//    MPWire.setClock(100000); // debug
     i2c_mp_init();
-    enc_0.init();
-//    encoder_init();
-//    oled_init();
-//    kscan_matrix_init();
-//    kscan_matrix_configure(velocity_kscan_handler);
-//    velocity_configure([](uint8_t r, uint8_t c, int8_t velocity, bool pressed) {
-//        Serial.printf("r: %d, c: %d, velocity: %d, pressed: %d\n", r, c, velocity, pressed);
-//    });
-//    kscan_matrix_enable();
-//
+#ifdef I2C_SCAN
+    i2c_scan_mp(); // use to troubleshoot i2c - takes a bit of time to run
+#endif
+
+    encoder_init();
+
+    oled_init();
+//    files_init();
+
+    ctrl_keys_evt.add_listener([](CtrlKey& evt) {
+        Serial.printf("ctrl_keys_evt: %d\n", evt);
+        return false;
+    });
+
+    kscan_matrix_init();
+    kscan_matrix_configure(velocity_kscan_handler);
+    velocity_configure([](uint8_t r, uint8_t c, int8_t velocity, bool pressed) {
+        Serial.printf("r: %d, c: %d, velocity: %d, pressed: %d\n", r, c, velocity, pressed);
+    });
+    kscan_matrix_enable();
+
 //    ui_init();
 }
 

@@ -2,16 +2,24 @@
 
 #include <forward_list>
 
+//#define EVENT_DEBUG
+
 template<typename TMessage, typename TListener>
 class EventBase {
 protected:
     std::forward_list<TListener> listeners;
 public:
     void add_listener(TListener listener) {
+#ifdef EVENT_DEBUG
+        Serial.println("EventBase: adding listener");
+#endif
         listeners.push_front(listener);
     }
 
     void remove_listener(TListener listener) {
+#ifdef EVENT_DEBUG
+        Serial.println("EventBase: removing listener");
+#endif
         listeners.remove(listener);
     }
 
@@ -25,6 +33,10 @@ template<typename TMessage>
 class BroadcastEvent : public VoidEventBase<TMessage> {
 public:
     void emit(TMessage& message) {
+        if(VoidEventBase<TMessage>::listeners.empty()) return;
+#ifdef EVENT_DEBUG
+        Serial.println("BroadcastEvent: emitting");
+#endif
         for(auto& listener : VoidEventBase<TMessage>::listeners) {
             listener(message);
         }
@@ -37,7 +49,17 @@ template<typename TMessage>
 class DispatcherEvent : public VoidEventBase<TMessage> {
 public:
     void emit(TMessage& message) {
-        VoidEventBase<TMessage>::listeners.front()(message);
+        if(!VoidEventBase<TMessage>::listeners.empty()) {
+#ifdef EVENT_DEBUG
+            Serial.println("DispatcherEvent: there is a listener, calling it");
+#endif
+            auto front = VoidEventBase<TMessage>::listeners.front();
+            front(message);
+        } else {
+#ifdef EVENT_DEBUG
+            Serial.println("DispatcherEvent: no listener");
+#endif
+        }
     }
 };
 
@@ -51,8 +73,15 @@ template<typename TMessage>
 class BubblingEvent : public BubblingEventBase<TMessage> {
 public:
     void emit(TMessage& message) {
+        if(BubblingEventBase<TMessage>::listeners.empty()) return;
         for(auto& listener : BubblingEventBase<TMessage>::listeners) {
+#ifdef EVENT_DEBUG
+            Serial.println("BubblingEvent: calling listener");
+#endif
             if(listener(message)) {
+#ifdef EVENT_DEBUG
+                Serial.println("BubblingEvent: listener returned true, stopping");
+#endif
                 break;
             }
         }

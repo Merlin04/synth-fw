@@ -10,6 +10,8 @@
 #include "kscan/velocity.hpp"
 #include "util/thread.hpp"
 
+//#define SCHEDULER_DEBUG
+
 template<typename TParam>
 class SchedulerThread : public Thread<SchedulerThread<TParam>> {
 private:
@@ -33,6 +35,9 @@ public:
     }
 
     void schedule_at(uint32_t run_at, uint32_t ra_relative_to_ts, TParam param) {
+#ifdef SCHEDULER_DEBUG
+        Serial.printf("schedule_at: %d, %d\n", run_at, ra_relative_to_ts);
+#endif
         Threads::Scope m(jobs_mutex);
         auto it = jobs.begin();
 
@@ -69,8 +74,20 @@ private:
     [[noreturn]] void thread_fn() {
         while(true) {
             jobs_mutex.lock();
-            auto j = jobs.front();
-            if(j.run_at - micros() <= 0) {
+#ifdef SCHEDULER_DEBUG
+            Serial.printf("scheduler thread_fn: %d\n", jobs.size());
+            if(!jobs.empty()) {
+                Serial.printf("scheduler thread_fn: front run_at: %d (currently %d)\n", jobs.front().run_at, micros());
+            }
+#endif
+            if(!jobs.empty() && ((int64_t) jobs.front().run_at) - ((int64_t) micros()) <= 0) {
+#ifdef SCHEDULER_DEBUG
+                Serial.printf("scheduler work\n");
+#endif
+                auto j = jobs.front();
+#ifdef SCHEDULER_DEBUG
+                Serial.printf("%d\n", j.param);
+#endif
                 jobs.pop_front();
                 jobs_mutex.unlock();
                 work(j.param);
@@ -95,6 +112,9 @@ public:
 // This is a scheduler instance shared between velocity and kscan_gpio_direct
 // (shared because why not, saves a thread)
 inline SchedulerThread<int> scheduler = SchedulerThread<int>([](int& i) {
+#ifdef SCHEDULER_DEBUG
+    Serial.printf("main scheduler work: %d\n", i);
+#endif
     if(i < 0) {
         kscan_matrix_read();
     } else {
