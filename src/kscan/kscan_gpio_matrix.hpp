@@ -6,4 +6,4 @@ void kscan_matrix_init();
 void kscan_matrix_configure(kscan_callback_t callback);
 
 // for scheduler
-void kscan_matrix_read();
+//void kscan_matrix_read();

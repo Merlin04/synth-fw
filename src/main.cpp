@@ -1,4 +1,5 @@
 //#define I2C_SCAN
+//#define MATRIX_TEST
 
 #include <Arduino.h>
 #include <Adafruit_GFX.h> // needs to be included for build to work for some reason
@@ -18,7 +19,11 @@ ThreadWrap(Serial, SerialWrapped)
 #include "hardware/ctrl_keys.hpp"
 
 #ifdef I2C_SCAN
-#include "hardware/i2c_scan.hpp"
+#include "test/i2c_scan.hpp"
+#endif
+
+#ifdef MATRIX_TEST
+#include "test/matrix_test.hpp"
 #endif
 //#include "hardware/files.hpp"
 
@@ -26,7 +31,7 @@ void setup() {
 //    Serial.println("Yeag!");
 //    delay(5000);
 
-     for(int i = 0; i < 5; i++) {
+     for(int i = 0; i < 3; i++) {
          Serial.println("Yeag!");
          delay(1000);
      }
@@ -37,6 +42,10 @@ void setup() {
     threads.setDefaultStackSize(2048); // printf causes stack overflow if this isn't set
     threads.setSliceMicros(400); // short slice so it is more responsive - teensy is fast enough :)
     scheduler.init();
+
+#ifdef MATRIX_TEST
+    matrix_test();
+#endif
 
     MPWire.begin();
 //    MPWire.setClock(100000); // debug

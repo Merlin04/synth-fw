@@ -116,7 +116,7 @@ inline SchedulerThread<int> scheduler = SchedulerThread<int>([](int& i) {
     Serial.printf("main scheduler work: %d\n", i);
 #endif
     if(i < 0) {
-        kscan_matrix_read();
+//        kscan_matrix_read();
     } else {
         velocity_scheduler_cb(i);
     }

@@ -1,6 +1,6 @@
 #include "i2c_scan.hpp"
 #include <Wire.h>
-#include "i2c_mp.hpp"
+#include "hardware/i2c_mp.hpp"
 
 void printKnownChips(byte address) {
     // Is this list missing part numbers for chips you use?

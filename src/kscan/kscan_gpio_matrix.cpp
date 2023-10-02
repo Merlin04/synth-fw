@@ -12,7 +12,7 @@
 #include <Arduino.h>
 #include "scheduler/scheduler_thread.hpp"
 
-#define KSCAN_MATRIX_DEBUG
+//#define KSCAN_MATRIX_DEBUG
 
 struct kscan_matrix_data {
     struct kscan_gpio_list inputs;
@@ -61,8 +61,8 @@ volatile static struct kscan_matrix_data data = {
     .matrix_state = kscan_matrix_state
 };
 
-void _kscan_matrix_read(bool from_irq);
 static void kscan_matrix_irq_callback_handler();
+void kscan_matrix_read(uint8_t poll_counter);
 
 static void kscan_matrix_interrupt_enable() {
 #ifdef KSCAN_MATRIX_DEBUG
@@ -97,7 +97,7 @@ static void kscan_matrix_irq_callback_handler() {
 
     data.scan_time = micros(); // https://www.utopiamechanicus.com/article/handling-arduino-microsecond-overflow/
 
-    _kscan_matrix_read(true);
+    kscan_matrix_read(5); // start polling for a bit to try to catch everything
 }
 
 static int state_index_rc(const uint8_t row, const uint8_t col) {
@@ -111,10 +111,17 @@ static int state_index_io(const uint8_t input_idx, const uint8_t output_idx) {
     return COND_DIODE_DIR(state_index_rc(output_idx, input_idx), state_index_rc(input_idx, output_idx));
 }
 
-void kscan_matrix_read() {
-    _kscan_matrix_read(false);
-}
-void _kscan_matrix_read(bool from_irq) {
+SchedulerThread<uint8_t> matrix_scheduler = SchedulerThread<uint8_t>([](uint8_t& i) {
+#ifdef KSCAN_MATRIX_DEBUG
+    Serial.printf("matrix_scheduler work: %d\n", i);
+#endif
+    kscan_matrix_read(i);
+});
+
+//void kscan_matrix_read() {
+//    _kscan_matrix_read(false);
+//}
+void kscan_matrix_read(uint8_t poll_counter) {
 #ifdef KSCAN_MATRIX_DEBUG
     Serial.println("_kscan_matrix_read");
 #endif
@@ -134,20 +141,25 @@ void _kscan_matrix_read(bool from_irq) {
 
             const uint8_t index = state_index_io(in_gpio->index, out_gpio->index);
             const bool active = digitalReadFast(in_gpio->pin) == HIGH; // assume INPUT_PULLDOWN (active high)
+#ifdef KSCAN_MATRIX_DEBUG
+            if(active) {
+                Serial.printf("active: %d, i: %d, j: %d, index: %d\n", active, i, j, index);
+            }
+#endif
 
             debounce_update(&data.matrix_state[index], active, INST_DEBOUNCE_SCAN_PERIOD_MS);
         }
 
         digitalWriteFast(out_gpio->pin, 0);
+        delayMicroseconds(5); // electron moment, I think this is waiting for the diode to switch?? unclear
     }
 #ifdef KSCAN_MATRIX_DEBUG
     Serial.println("_kscan_matrix_read scan done");
 #endif
 
     // Process the new state.
-    bool continue_scan = from_irq; // sometimes an interrupt will be triggered but the switch will jitter a bit and seem like it wasn't pressed
+    bool continue_scan = poll_counter > 0; // sometimes an interrupt will be triggered but the switch will jitter a bit and seem like it wasn't pressed
     // but we know it was pressed, so continue even if the debouncer says nothing is active
-    // TODO: if this doesn't catch all of this happening, add a counter that retries some n times
 
     for(uint8_t r = 0; r < INST_ROWS_LEN; r++) {
         for(uint8_t c = 0; c < INST_COLS_LEN; c++) {
@@ -156,6 +168,9 @@ void _kscan_matrix_read(bool from_irq) {
 
             if(debounce_get_changed(state)) {
                 const bool pressed = debounce_is_pressed(state);
+#ifdef KSCAN_MATRIX_DEBUG
+                Serial.printf("r: %d, c: %d, pressed: %d\n", r, c, pressed);
+#endif
                 data.callback(r, c, pressed);
             }
 
@@ -174,10 +189,10 @@ void _kscan_matrix_read(bool from_irq) {
 #ifdef KSCAN_MATRIX_DEBUG
         Serial.printf("continue_scan: %d, data.scan_time: %d, micros(): %d\n", continue_scan, data.scan_time, micros());
 #endif
-        scheduler.schedule_at(data.scan_time, micros(), -1);
+        matrix_scheduler.schedule_at(data.scan_time, micros(), poll_counter == 0 ? 0 : poll_counter - 1);
     } else {
 #ifdef KSCAN_MATRIX_DEBUG
-        Serial.println("continue_scan: false");
+        Serial.println("not continuing scan");
 #endif
         // All keys are released. Return to normal.
         // Return to waiting for an interrupt.
@@ -195,7 +210,7 @@ void kscan_matrix_enable() {
 #endif
     data.scan_time = micros();
     // Read will automatically start interrupts once done.
-    kscan_matrix_read();
+    kscan_matrix_read(0);
 }
 
 void kscan_matrix_init() {
@@ -209,4 +224,6 @@ void kscan_matrix_init() {
         pinMode(gpio->pin, OUTPUT);
         digitalWriteFast(gpio->pin, 0);
     }
+
+    matrix_scheduler.init();
 }
