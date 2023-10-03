@@ -15,15 +15,37 @@ void matrix_test() {
 
     while(true) {
         for(int i = 0; i < 9; i++) {
-            digitalWrite(cols[i], HIGH);
+            digitalWriteFast(cols[i], 1);
             for(int j = 0; j < 13; j++) {
-                if(digitalRead(rows[j]) == HIGH) {
+                if(digitalReadFast(rows[j]) == 1) {
                     Serial.printf("row: %d, col: %d\n", j, i);
                 }
             }
-            digitalWrite(cols[i], LOW);
+            digitalWriteFast(cols[i], 0);
             delayMicroseconds(5);
         }
-        delay(10);
+//        delay(10);
     }
 }
+
+/*
+void matrix_test_irq_callback_handler() {
+
+}
+
+void matrix_test_enable_interrupts() {
+    for(int col : cols) {
+        digitalWrite(col, 1);
+    }
+    for(int row : rows) {
+        attachInterrupt(row, matrix_test_irq_callback_handler, CHANGE);
+    }
+}
+
+void matrix_test_disable_interrupts() {
+
+}
+
+void matrix_test_interrupts() {
+
+}*/

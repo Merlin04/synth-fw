@@ -108,16 +108,3 @@ public:
         thread_init();
     }
 };
-
-// This is a scheduler instance shared between velocity and kscan_gpio_direct
-// (shared because why not, saves a thread)
-inline SchedulerThread<int> scheduler = SchedulerThread<int>([](int& i) {
-#ifdef SCHEDULER_DEBUG
-    Serial.printf("main scheduler work: %d\n", i);
-#endif
-    if(i < 0) {
-//        kscan_matrix_read();
-    } else {
-        velocity_scheduler_cb(i);
-    }
-});

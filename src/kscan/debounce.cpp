@@ -6,7 +6,11 @@
  */
 
 #include "debounce.hpp"
-#include "kscan_config.hpp"
+
+// https://zmk.dev/docs/features/debouncing
+// instant activate
+#define INST_DEBOUNCE_PRESS_MS 0
+#define INST_DEBOUNCE_RELEASE_MS 1
 
 static uint32_t get_threshold(const struct debounce_state* state) {
     return state->pressed ? INST_DEBOUNCE_RELEASE_MS : INST_DEBOUNCE_PRESS_MS;

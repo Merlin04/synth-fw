@@ -1,6 +1,5 @@
 #include "velocity.hpp"
-#include "kscan_config.hpp"
-#include "kscan_gpio.hpp"
+#include "kscan_gpio_matrix.hpp"
 #include "scheduler/scheduler_thread.hpp"
 #include "hardware/ctrl_keys.hpp"
 
@@ -13,7 +12,7 @@ struct KeyState {
     int8_t velocity = 0; // midi uses values 0-127
 };
 
-static struct KeyState key_states[INST_MATRIX_LEN / 2];
+static struct KeyState key_states[MATRIX_LEN / 2];
 
 velocity_callback_t velocity_callback;
 
@@ -27,43 +26,13 @@ enum KeyType {
     KEY_TYPE_CTRL
 };
 
-#if INST_ROWS_LEN == 1
-static KeyType key_type(uint8_t row, uint8_t column) {
-    switch(column) {
-        case 0: //[[fallthrough]]
-        case 1: //[[fallthrough]]
-        case 2:
-            return KEY_TYPE_LOWER;
-    }
-    return KEY_TYPE_UPPER;
-}
-static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* out_c) {
-    *out_r = 0;
-    *out_c = 0;
-    switch(column) {
-        case 3: //[[fallthrough]]
-        case 2:
-            *out_c = 2;
-            break;
-        case 4: //[[fallthrough]]
-        case 1:
-            *out_c = 1;
-            break;
-        case 5: //[[fallthrough]]
-        case 0:
-            *out_c = 0;
-            break;
-    }
-}
-#else
-static KeyType key_type(uint8_t row, uint8_t column) {
+static KeyType key_type(uint8_t row, uint8_t _column) {
     return row == 12 ? KEY_TYPE_CTRL : row % 2 == 0 ? KEY_TYPE_UPPER : KEY_TYPE_LOWER;
 }
 static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* out_c) {
     *out_r = row / 2;
     *out_c = column;
 }
-#endif
 
 /*
  * summary of algorithm:
@@ -77,19 +46,24 @@ static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* ou
 #define VELOCITY_TIMEOUT 150'000 // 150ms
 #define VELOCITY_TIMEOUT_VALUE 50 // TODO: tune this value
 
-void velocity_scheduler_cb(int& index) {
-    Serial.println("timeout");
+SchedulerThread<int> scheduler = SchedulerThread<int>([](int& index) {
+//    Serial.println("timeout");
     struct KeyState* state = &key_states[index];
     state->velocity = VELOCITY_TIMEOUT_VALUE;
     state->from_timeout = true;
     state->measuring = false;
 
     uint8_t r, c;
-    get_key_pos(index / INST_COLS_LEN, index % INST_COLS_LEN, &r, &c);
+    get_key_pos(index / COLS_LEN, index % COLS_LEN, &r, &c);
     velocity_callback(r, c, state->velocity, true);
+});
+
+void velocity_init() {
+    scheduler.init();
 }
 
 void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
+    Serial.printf("velocity_kscan_handler: row: %d, column: %d, pressed: %d\n", row, column, pressed);
     KeyType type = key_type(row, column);
     if(type == KEY_TYPE_CTRL) {
         auto key = static_cast<CtrlKey>(column);
@@ -99,7 +73,7 @@ void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
 
     uint8_t r, c;
     get_key_pos(row, column, &r, &c);
-    uint8_t index = r * INST_COLS_LEN + c;
+    uint8_t index = r * COLS_LEN + c;
     struct KeyState* state = &key_states[index];
 
     if(type == KEY_TYPE_UPPER) {
