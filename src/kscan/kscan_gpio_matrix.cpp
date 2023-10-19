@@ -71,9 +71,6 @@ SchedulerThread<uint8_t> matrix_scheduler = SchedulerThread<uint8_t>([](uint8_t&
     kscan_matrix_read(i);
 });
 
-//void kscan_matrix_read() {
-//    _kscan_matrix_read(false);
-//}
 void kscan_matrix_read(uint8_t poll_counter) {
 #ifdef KSCAN_MATRIX_DEBUG
     Serial.println("_kscan_matrix_read");
@@ -90,29 +87,9 @@ void kscan_matrix_read(uint8_t poll_counter) {
             const uint8_t index = state_index(in_idx, out_idx);
             const bool active = digitalRead(matrix_inputs[in_idx]) == HIGH; // assume INPUT_PULLDOWN (active high)
 
-            /*if(out_idx == 0 && active) {
-                // are we sure????
-                Serial.println("out_idx is zero, and active???");
-                // investigate
-//                digitalWrite(matrix_outputs[out_idx], 0);
-                for(int pin : matrix_outputs) {
-                    digitalWrite(pin, 0);
-                }
-                for(int pin : matrix_inputs) {
-//                    pinMode(pin, INPUT_PULLDOWN);
-//                    digitalWrite(pin, 0);
-                }
-//                delayMicroseconds(1);
-                digitalWrite(matrix_outputs[out_idx], 1);
-                auto d = digitalRead(matrix_inputs[in_idx]);
-                Serial.printf("d: %d,out_idx: %d,in_idx: %d\n", d, out_idx, in_idx);
-            }*/
 #ifdef KSCAN_MATRIX_DEBUG
             if(active) {
                 Serial.printf("active: %d, i: %d, j: %d, index: %d\n", active, in_idx, out_idx, index);
-            }
-            if(out_idx != 8 && active) {
-                Serial.printf("AAAAAAAAAAAAAA out_idx: %d\n", out_idx);
             }
 #endif
 
@@ -183,18 +160,6 @@ void kscan_matrix_enable() {
 }
 
 void kscan_matrix_init() {
-    // debug: try to see if any of the debounce state is not just zeroed out
-    // we can just cast each debounce state to a uint8_t and see if equals 0
-    // if it doesn't, then we know something is wrong
-
-    for(int i = 0; i < MATRIX_LEN; i++) {
-        if(*((uint8_t*) &matrix_state[i]) != 0) {
-            Serial.printf("matrix_state[%d] is not zeroed out\n", i);
-        }
-    }
-
-
-
     for(int matrix_input : matrix_inputs) {
         pinMode(matrix_input, INPUT_PULLDOWN);
     }

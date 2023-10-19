@@ -1,5 +1,6 @@
 #include "ui.hpp"
 #include <Arduino.h>
+#include <Adafruit_GFX.h> // needs to be included for build to work for some reason
 #include <ST7789_t3.h>
 #include <Fonts/FreeMono9pt7b.h>
 #include <TeensyThreads.h>
@@ -33,34 +34,35 @@ EXTMEM uint16_t frame_buffer[SCREEN_X * SCREEN_Y];
 #define UI_TEXT_DISABLED RGBA(255, 255, 255, 0.6)
 #define UI_BLACK RGBA(23, 3, 18, 1) // use this rarely
 
-constexpr uint8_t frame_rate = 30;
+constexpr uint8_t frame_rate = /*30*/ 120;
 
 
 void ui_render() {
-    auto root = Re::box()
-            ->width(320)
-            ->height(240)
-            ->flexDirection(YGFlexDirectionRow)
-            ->justifyContent(YGJustifySpaceBetween)
-            ->alignItems(YGAlignStretch)
-                    // ->bg(Re::RGB(0, 0, 100))
-            ->children();
+    auto root = std::unique_ptr<Re::Box>(Re::box());
+    root
+        ->width(320)
+        ->height(240)
+        ->flexDirection(YGFlexDirectionRow)
+        ->justifyContent(YGJustifySpaceBetween)
+        ->alignItems(YGAlignStretch)
+        ->bg(std::make_unique<Re::RGB>(0, 100, 0))
+        ->children();
 
-    Serial.println("ReLay box");
+    Serial.println("aaaaaaaaReLay box");
+
+//    Re::box()
+//            // ->width(100)
+//            ->height(100)
+//            ->flex(1)
+//            ->m(10)
+//            ->p(10)
+//            ->border(YGEdgeAll, 5)
+//            ->bg(Re::RGB(255, 105, 0))
+//            ->text("Hello, world!");
 
     Re::box()
-            // ->width(100)
-            ->height(100)
-            ->flex(1)
-            ->m(10)
-            ->p(10)
-            ->border(YGEdgeAll, 5)
-            ->bg(Re::RGB(255, 105, 0))
-            ->text("Hello, world!");
-
-    Re::box()
-            ->color(Re::RGB(255, 100, 255))
-                    // ->bg(0, 0, 100)
+            ->color(MAKE_RGB(255, 100, 255))
+            ->bg(MAKE_RGB(0, 0, 100))
                     // ->border_color(Re::RGB(0, 0, 100))
                     // ->border(YGEdgeAll, 5)
             ->text("testing the text!");
@@ -89,7 +91,9 @@ void ui_init() {
             tft.waitUpdateAsyncComplete(); // make sure any previous update is done
             tft.updateScreenAsync();
 
-            threads.delay_us(1000000 / frame_rate - (micros() - start));
+            auto delay = 1000000 / frame_rate - (micros() - start);
+            Serial.printf("delaying for %d\n", delay);
+            threads.delay_us(delay);
         }
     });
 }

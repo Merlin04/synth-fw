@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-typedef void(* velocity_callback_t) (uint8_t row, uint8_t column, int8_t velocity, bool pressed);
+typedef void(* velocity_callback_t) (uint8_t row, uint8_t column, uint8_t velocity, bool pressed);
 
 void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed);
 void velocity_init();

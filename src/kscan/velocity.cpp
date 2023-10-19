@@ -3,13 +3,13 @@
 #include "scheduler/scheduler_thread.hpp"
 #include "hardware/ctrl_keys.hpp"
 
-// simple function to test that scheduling and cancelling jobs works!
-
 struct KeyState {
     uint32_t time = 0;
     bool measuring : 1;
     bool from_timeout : 1;
-    int8_t velocity = 0; // midi uses values 0-127
+    uint8_t velocity = 0; // midi uses values 0-127, we can just divide this by 2 to convert to midi value
+                          // maybe we can also use high resolution velocity prefix?
+                          // https://www.midi.org/midi/specifications/midi1-specifications/midi-1-addenda/high-resolution-velocity-prefix
 };
 
 static struct KeyState key_states[MATRIX_LEN / 2];
@@ -43,11 +43,11 @@ static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* ou
  * when upper released, don't do anything
  */
 
-#define VELOCITY_TIMEOUT 150'000 // 150ms
+#define VELOCITY_TIMEOUT 300'000 // 150ms
 #define VELOCITY_TIMEOUT_VALUE 50 // TODO: tune this value
 
 SchedulerThread<int> scheduler = SchedulerThread<int>([](int& index) {
-//    Serial.println("timeout");
+    Serial.println("timeout");
     struct KeyState* state = &key_states[index];
     state->velocity = VELOCITY_TIMEOUT_VALUE;
     state->from_timeout = true;
@@ -63,7 +63,7 @@ void velocity_init() {
 }
 
 void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
-    Serial.printf("velocity_kscan_handler: row: %d, column: %d, pressed: %d\n", row, column, pressed);
+//    Serial.printf("velocity_kscan_handler: row: %d, column: %d, pressed: %d\n", row, column, pressed);
     KeyType type = key_type(row, column);
     if(type == KEY_TYPE_CTRL) {
         auto key = static_cast<CtrlKey>(column);
@@ -81,12 +81,13 @@ void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
             // Serial.println("upper pressed");
             state->time = micros();
             state->measuring = true;
-            /*if(scheduler.cancel(index)) { // if someone double taps without clicking the bottom switch
+            if(scheduler.cancel(index)) { // if someone double taps without clicking the bottom switch
+                // things are broken here!!!
                 Serial.println("aaaa");
                 velocity_callback(r, c, state->velocity, true);
                 velocity_callback(r, c, state->velocity, false); // TODO does this actually do anything useful????
             }
-            scheduler.schedule(VELOCITY_TIMEOUT, index);*/
+            scheduler.schedule(VELOCITY_TIMEOUT, index);
         } else {
             // Serial.println("upper released");
             if(state->from_timeout) {
@@ -100,11 +101,12 @@ void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
             if(state->measuring) {
                 scheduler.cancel(index);
                 uint32_t delay = micros() - state->time;
+                Serial.printf("delay: %d\n", delay);
                 state->measuring = false;
                 // actually calculate the velocity - it should be within 0-127 (127 = highest velocity, so lowest delay)
                 // for now we'll use a linear velocity curve, but something else might be good to implement in the future
                 // state->velocity = (uint8_t) (127 * (1 - (float) delay / VELOCITY_TIMEOUT));
-                state->velocity = ((127 * (VELOCITY_TIMEOUT - delay)) / VELOCITY_TIMEOUT);
+                state->velocity = ((((uint32_t)127) * (VELOCITY_TIMEOUT - delay)) / VELOCITY_TIMEOUT);
             }
             velocity_callback(r, c, state->velocity, true);
         } else {

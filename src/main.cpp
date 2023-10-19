@@ -2,7 +2,6 @@
 //#define MATRIX_TEST
 
 #include <Arduino.h>
-#include <Adafruit_GFX.h> // needs to be included for build to work for some reason
 #include <TeensyThreads.h>
 
 ThreadWrap(Serial, SerialWrapped)
@@ -27,9 +26,6 @@ ThreadWrap(Serial, SerialWrapped)
 //#include "hardware/files.hpp"
 
 void setup() {
-//    Serial.println("Yeag!");
-//    delay(5000);
-
      for(int i = 0; i < 3; i++) {
          Serial.println("Yeag!");
          delay(1000);
@@ -46,7 +42,6 @@ void setup() {
 #endif
 
     MPWire.begin();
-//    MPWire.setClock(100000); // debug
     i2c_mp_init();
 #ifdef I2C_SCAN
     i2c_scan_mp(); // use to troubleshoot i2c - takes a bit of time to run
@@ -63,17 +58,17 @@ void setup() {
     });
 
     kscan_matrix_init();
-    kscan_matrix_configure([](uint8_t r, uint8_t c, bool pressed) {
-        Serial.printf("HANDLER r: %d, c: %d, pressed: %d\n", r, c, pressed);
-    });
-//    kscan_matrix_configure(velocity_kscan_handler);
-//    velocity_configure([](uint8_t r, uint8_t c, int8_t velocity, bool pressed) {
-//        Serial.printf("r: %d, c: %d, velocity: %d, pressed: %d\n", r, c, velocity, pressed);
+//    kscan_matrix_configure([](uint8_t r, uint8_t c, bool pressed) {
+//        Serial.printf("HANDLER r: %d, c: %d, pressed: %d\n", r, c, pressed);
 //    });
-//    velocity_init();
+    kscan_matrix_configure(velocity_kscan_handler);
+    velocity_configure([](uint8_t r, uint8_t c, int8_t velocity, bool pressed) {
+        Serial.printf("r: %d, c: %d, velocity: %d, pressed: %d\n", r, c, velocity, pressed);
+    });
+    velocity_init();
     kscan_matrix_enable();
 
-//    ui_init();
+    ui_init();
 }
 
 void loop() {}

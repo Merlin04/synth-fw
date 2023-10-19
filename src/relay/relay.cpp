@@ -9,70 +9,94 @@
 #include "relay.hpp"
 #include <stack>
 #include <Arduino.h>
+#include <yoga/Yoga-internal.h>
+
+#define RELAY_DEBUG
 
 namespace Re {
-    // stores properties that get passed down to children, and others that are necessary for rendering
-    // struct Context {
-    //     Box* parent;
-    // };
-
-    // std::stack<Context*> c_stack;
-    // Context* current;
-    Box* current;
+    Box* current_parent;
 
     RGB black = {0, 0, 0};
-    
-//    void drawHorizontalLine(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t length, uint16_t color) {
-//        auto offset = y * buf->width + x;
-//        for (uint16_t i = offset; i < offset + length; i++) {
-//            buf->pixels[i] = color;
-//        }
-//    }
-//
-//    void drawVerticalLine(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t length, uint16_t color) {
-//        auto offset = y * buf->width + x;
-//        for (uint16_t i = offset; i < offset + length * buf->width; i += buf->width) {
-//            buf->pixels[i] = color;
-//        }
-//    }
-//
-//    void fillRect(DisplayBuffer16* buf, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
-//        auto offset = y * buf->width + x;
-//        for (uint16_t i = offset; i < offset + h * buf->width; i += buf->width) {
-//            for (uint16_t j = i; j < i + w; j++) {
-//                buf->pixels[j] = color;
-//            }
-//        }
-//    }
 
-    void Box::_init() {
-        // Run on object instantiation.
-        if(!current) return;
-        // inherit properties that should be inherited
-        // (as of right now, just text color)
-        _color = current->_color;
+    Box* box() {
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: box()");
+#endif
+        auto b = new Box();
+        if(!current_parent) return b;
 
-        // add to children of current
-        if(current->_child_type == BOXES) {
-            if(!current->_children) current->_children = new std::list<Box*>();
-            current->_children->push_back(this);
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: setting up new box as child");
+#endif
 
-            YGNodeInsertChild(current->_node, _node, YGNodeGetChildCount(current->_node));
+        // set up b as child of current, and transfer ownership
+        if(current_parent->_child_type != Box::BOXES) {
+            // this codepath should not be possible
+            Serial.println("ReLay: error: current_parent is a node that does not have box children!!!");
+            return b;
         }
-        // the user should never add children to a box that has text or pixels, in that case we just won't end up rendering the child
 
-        _parent = current;
+        current_parent->_children->emplace_back(b);
+        YGNodeInsertChild(current_parent->_node, b->_node, YGNodeGetChildCount(current_parent->_node));
+
+        b->_parent = current_parent;
+
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: returning box");
+#endif
+
+        return b;
+    }
+
+    Box::Box() {
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: Box constructor");
+#endif
+        _node = YGNodeNew();
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: Box constructor done");
+#endif
+    }
+
+    Box::~Box() {
+        // child destructors will be automatically called, since
+        // they're unique_ptrs in an std::list
+
+        // for now, we won't "properly" clean up the node (removing
+        // it from the parent, etc) because we probably will only
+        // call the destructor from when the root is destructed
+        // so ig this is a TODO to maybe figure out later
+        // (who am i kidding, this won't be fixed will it)
+
+        // anyway
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: Box destructor");
+#endif
+        YGNodeDeallocate(_node); // for proper cleanup use YGNodeFree
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: Box destructor done");
+#endif
     }
 
     Box* Box::children() {
-        current = this;
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: children()");
+#endif
+        current_parent = this;
         _child_type = BOXES;
+        _children = std::make_unique<std::list<std::unique_ptr<Box>>>();
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: children() done");
+#endif
         return this;
     }
 
     void end() {
-        if(!current || !current->_parent) return;
-        current = current->_parent;
+        if(!current_parent) return;
+        current_parent = current_parent->_parent;
+#ifdef RELAY_DEBUG
+        Serial.println("ReLay: end()");
+#endif
     }
 
     Box* Box::text(const char* text) {
@@ -133,7 +157,7 @@ namespace Re {
         if(borderLeft > 0 || borderRight > 0 || borderTop > 0 || borderBottom > 0) {
             if(_border_color == nullptr) {
                 // default to black
-                _border_color = &black;
+                _border_color = std::make_unique<RGB>(black);
             }
 
             if(borderLeft > 0) {
@@ -156,7 +180,7 @@ namespace Re {
         switch(_child_type) {
             case BOXES:
                 if(_children != nullptr) {
-                    for(auto child : *_children) {
+                    for(auto &child : *_children) {
                         child->_renderSelf(tft);
                     }
                 }
@@ -164,7 +188,7 @@ namespace Re {
             case TEXT:
                 if(_color == nullptr) {
                     // default to black
-                    _color = &black;
+                    _color = std::make_unique<RGB>(black);
                 }
                 // TODO: font size
                 tft->setTextColor(_color->to565());
@@ -176,9 +200,5 @@ namespace Re {
                 }
                 break;
         }
-    }
-
-    Box* box() {
-        return new Box();
     }
 }

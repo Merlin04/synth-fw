@@ -5,19 +5,21 @@
  */
 
 #pragma once
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
 #include <list>
+#include <Adafruit_GFX.h>
 #include <ST7789_t3.h>
+#include <memory>
 
 #include "yoga/Yoga.h"
 
-#define SETTER(name, type) Box* name(type name) { this->_##name = name; return this; }
+#define SETTER(name, type) Box* name(const std::unique_ptr<type> name) { this->_##name = std::unique_ptr<RGB>(name.get()); return this; }
 
 #define COLOR_SETTER(name) \
-    SETTER(name, RGB*) \
-    Box* name(RGB name) { this->_##name = new RGB(name); return this; } \
-    Box* name(uint8_t r, uint8_t g, uint8_t b) { this->_##name = new RGB(r, g, b); return this; }
+    SETTER(name, RGB)     \
+    Box* name(uint8_t r, uint8_t g, uint8_t b) { this->_##name = std::make_unique<RGB>(r, g, b); return this; }                           \
+//    Box* name(RGB name) { this->_##name = new RGB(name); return this; }
 
 #define CSS_SHORTHAND(name, ygName) \
     Box* name(float name) { YGNodeStyleSet##ygName(_node, YGEdgeAll, name); return this; } \
@@ -42,7 +44,7 @@ namespace Re {
     // simple color struct
     struct RGB {
         uint8_t r = 0, g = 0, b = 0;
-        uint16_t _565;
+        uint16_t _565 = 0;
         bool _565_valid = false;
         
         uint16_t to565() {
@@ -59,9 +61,9 @@ namespace Re {
             };
         }
 
-        RGB() {}
+        RGB() = default;
         RGB(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
-        RGB(RGB* rgb) : r(rgb->r), g(rgb->g), b(rgb->b) {}
+        explicit RGB(RGB* rgb) : r(rgb->r), g(rgb->g), b(rgb->b) {}
     };
 
     // pixels callback function - it takes an x, y, width, height, and buffer pointer, and returns void
@@ -78,12 +80,12 @@ namespace Re {
 
         YGNodeRef _node;
 
-        RGB *_bg = nullptr, *_color = nullptr, *_border_color = nullptr;
+        std::unique_ptr<RGB> _bg = nullptr, _color = nullptr, _border_color = nullptr;
         // children
         union {
             const char* _text;
             pixels_cb _pixels_cb;
-            std::list<Box*>* _children = nullptr;
+            std::unique_ptr<std::list<std::unique_ptr<Box>>> _children = nullptr;
         };
         enum {
             TEXT,
@@ -91,33 +93,36 @@ namespace Re {
             BOXES
         } _child_type;
 
-        Box* _parent = nullptr;
+        Box* _parent = nullptr; // pointer/this' memory managed by parent
 
-        Box() {
-            _node = YGNodeNew();
-            _init();
-        }
-        Box(Box* parent) : _parent(parent) {
-            _node = YGNodeNew();
-            _init();
-        }
+        Box();
 
-        void _init();
         void _renderSelf(ST7789_t3* tft);
 
         public:
 
-        #define YG_PROP_FN(name, fnName, type) \
-            Box* name(const type name) { YGNodeStyleSet##fnName(_node, name); return this; }
-        
-        #define YG_PROP_FN_0A(name, fnName) \
-            Box* name() { YGNodeStyleSet##fnName(_node); return this; }
-        
-        #define YG_PROP_FN_1A(name, fnName, arg0, arg0Type) \
-            Box* name(const arg0Type arg0) { YGNodeStyleSet##fnName(_node, arg0); return this; }
-        
-        #define YG_PROP_FN_2A(name, fnName, arg0, arg0Type, arg1, arg1Type) \
-            Box* name(const arg0Type arg0, const arg1Type arg1) { YGNodeStyleSet##fnName(_node, arg0, arg1); return this; }
+        ~Box(); // needs to be public so std::unique_ptr can call
+
+        //        void render(DisplayBuffer16* buffer);
+        void render(ST7789_t3* tft);
+
+        Box* text(const char* text);
+        Box* pixels(pixels_cb cb);
+        Box* children();
+        friend Box* box();
+        friend void end();
+
+#define YG_PROP_FN(name, fnName, type) \
+    Box* name(const type name) { YGNodeStyleSet##fnName(_node, name); return this; }
+
+#define YG_PROP_FN_0A(name, fnName) \
+    Box* name() { YGNodeStyleSet##fnName(_node); return this; }
+
+#define YG_PROP_FN_1A(name, fnName, arg0, arg0Type) \
+    Box* name(const arg0Type arg0) { YGNodeStyleSet##fnName(_node, arg0); return this; }
+
+#define YG_PROP_FN_2A(name, fnName, arg0, arg0Type, arg1, arg1Type) \
+    Box* name(const arg0Type arg0, const arg1Type arg1) { YGNodeStyleSet##fnName(_node, arg0, arg1); return this; }
         
         YG_PROP_FN(direction, Direction, YGDirection)
         YG_PROP_FN(flexDirection, FlexDirection, YGFlexDirection)
@@ -161,15 +166,6 @@ namespace Re {
         YG_PROP_FN(maxHeightPercent, MaxHeightPercent, float)
 
         BOX_SETTERS
-
-//        void render(DisplayBuffer16* buffer);
-        void render(ST7789_t3* tft);
-        
-        Box* text(const char* text);
-        Box* pixels(pixels_cb cb);
-        Box* children();
-        friend Box* box();
-        friend void end();
     };
 
     Box* box();
@@ -186,3 +182,5 @@ namespace Re {
 //        ST7789_t3 tft;
 //    };
 }
+
+#define MAKE_RGB(r, g, b) std::make_unique<Re::RGB>(r, g, b)
