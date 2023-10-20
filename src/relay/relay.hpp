@@ -14,7 +14,10 @@
 
 #include "yoga/Yoga.h"
 
-#define SETTER(name, type) Box* name(const std::unique_ptr<type> name) { this->_##name = std::unique_ptr<RGB>(name.get()); return this; }
+#define SETTER(name, type) Box* name(const std::unique_ptr<type> name) { \
+    this->_##name = std::unique_ptr<RGB>(new RGB(name.get())); \
+    return this; \
+}
 
 #define COLOR_SETTER(name) \
     SETTER(name, RGB)     \
@@ -78,20 +81,20 @@ namespace Re {
     class Box {
         private:
 
-        YGNodeRef _node;
+        YGNodeRef _node = nullptr;
 
         std::unique_ptr<RGB> _bg = nullptr, _color = nullptr, _border_color = nullptr;
         // children
         union {
             const char* _text;
             pixels_cb _pixels_cb;
-            std::unique_ptr<std::list<std::unique_ptr<Box>>> _children = nullptr;
+            std::unique_ptr<std::list<std::unique_ptr<Box>>> _children = std::make_unique<std::list<std::unique_ptr<Box>>>();
         };
         enum {
             TEXT,
             PIXELS,
             BOXES
-        } _child_type;
+        } _child_type = BOXES;
 
         Box* _parent = nullptr; // pointer/this' memory managed by parent
 

@@ -9,25 +9,16 @@
 #include "relay.hpp"
 #include <stack>
 #include <Arduino.h>
-#include <yoga/Yoga-internal.h>
-
-#define RELAY_DEBUG
+//#include <yoga/Yoga-internal.h>
 
 namespace Re {
-    Box* current_parent;
+    Box* current_parent = nullptr;
 
     RGB black = {0, 0, 0};
 
     Box* box() {
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: box()");
-#endif
         auto b = new Box();
         if(!current_parent) return b;
-
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: setting up new box as child");
-#endif
 
         // set up b as child of current, and transfer ownership
         if(current_parent->_child_type != Box::BOXES) {
@@ -41,21 +32,11 @@ namespace Re {
 
         b->_parent = current_parent;
 
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: returning box");
-#endif
-
         return b;
     }
 
     Box::Box() {
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: Box constructor");
-#endif
         _node = YGNodeNew();
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: Box constructor done");
-#endif
     }
 
     Box::~Box() {
@@ -69,34 +50,20 @@ namespace Re {
         // (who am i kidding, this won't be fixed will it)
 
         // anyway
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: Box destructor");
-#endif
-        YGNodeDeallocate(_node); // for proper cleanup use YGNodeFree
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: Box destructor done");
-#endif
+//        YGNodeDeallocate(_node); // for proper cleanup use YGNodeFree
+        YGNodeFreeRecursive(_node);
     }
 
     Box* Box::children() {
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: children()");
-#endif
         current_parent = this;
         _child_type = BOXES;
         _children = std::make_unique<std::list<std::unique_ptr<Box>>>();
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: children() done");
-#endif
         return this;
     }
 
     void end() {
         if(!current_parent) return;
         current_parent = current_parent->_parent;
-#ifdef RELAY_DEBUG
-        Serial.println("ReLay: end()");
-#endif
     }
 
     Box* Box::text(const char* text) {
@@ -129,16 +96,14 @@ namespace Re {
         Serial.println("DEBUG calculate layout");
         Serial.printf("DEBUG width %d height %d\n", tft->width(), tft->height());
         YGNodeCalculateLayout(_node, tft->width(), tft->height(), YGDirectionLTR);
-        Serial.println("DEBUG renderself");
         _renderSelf(tft);
     }
 
     void Box::_renderSelf(ST7789_t3* tft) {
-        Serial.println("DEBUG renderself");
-        auto left = YGNodeLayoutGetLeft(_node);
-        auto top = YGNodeLayoutGetTop(_node);
-        auto width = YGNodeLayoutGetWidth(_node);
-        auto height = YGNodeLayoutGetHeight(_node);
+        auto left = static_cast<int16_t>(YGNodeLayoutGetLeft(_node));
+        auto top = static_cast<int16_t>(YGNodeLayoutGetTop(_node));
+        auto width = static_cast<int16_t>(YGNodeLayoutGetWidth(_node));
+        auto height = static_cast<int16_t>(YGNodeLayoutGetHeight(_node));
         Serial.printf("DEBUG left %d top %d width %d height %d\n", left, top, width, height);
 
         // background
@@ -146,7 +111,8 @@ namespace Re {
             Serial.println("drawing background");
             tft->fillRect(left, top, width, height, _bg->to565());
         }
-        Serial.println("DEBUG draw border");
+
+        Serial.println("drawing border");
 
         // draw border
         auto borderLeft = YGNodeLayoutGetBorder(_node, YGEdgeLeft);
@@ -174,18 +140,20 @@ namespace Re {
             }
         }
 
-        Serial.println("DEBUG draw children");
+        Serial.println("drawing children");
 
         // draw children
         switch(_child_type) {
             case BOXES:
                 if(_children != nullptr) {
                     for(auto &child : *_children) {
+                        Serial.println("--Rendering a child");
                         child->_renderSelf(tft);
                     }
                 }
                 break;
             case TEXT:
+                Serial.println("Rendering text");
                 if(_color == nullptr) {
                     // default to black
                     _color = std::make_unique<RGB>(black);
@@ -195,10 +163,13 @@ namespace Re {
                 tft->drawString1(const_cast<char *>(_text), strlen(_text), left + YGNodeLayoutGetPadding(_node, YGEdgeLeft), top + YGNodeLayoutGetPadding(_node, YGEdgeTop));
                 break;
             case PIXELS:
+                Serial.println("Rendering pixels");
                 if(_pixels_cb != nullptr) {
                     _pixels_cb(left, top, width, height, tft);
                 }
                 break;
         }
+
+        Serial.println("Done rendering");
     }
 }
