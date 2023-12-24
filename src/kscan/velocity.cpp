@@ -2,17 +2,43 @@
 #include "kscan_gpio_matrix.hpp"
 #include "scheduler/scheduler_thread.hpp"
 #include "hardware/ctrl_keys.hpp"
+#include "util/log.hpp"
 
-struct KeyState {
-    uint32_t time = 0;
-    bool measuring : 1;
-    bool from_timeout : 1;
-    uint8_t velocity = 0; // midi uses values 0-127, we can just divide this by 2 to convert to midi value
-                          // maybe we can also use high resolution velocity prefix?
-                          // https://www.midi.org/midi/specifications/midi1-specifications/midi-1-addenda/high-resolution-velocity-prefix
+/*
+
+keystate = {
+    timer_state = None | Running | TimedOut
+    top_ts = number
+    velocity = number
+    playing = bool
 };
 
-static struct KeyState key_states[MATRIX_LEN / 2];
+also use mutexes to access this data structure !!!
+on the loop when key pressed you should lock it
+
+
+
+on key press
+    bottom one:
+        press:
+            if it timed out, don't do anything and clear the timeout flag
+            if velocity timing job, cancel it
+            if velocity is set, send that
+            if the top level one is set, but velocity isn't, update velocity and send it
+            if otherwise, this is error, so just set velocity to the default and send it
+        release:
+            stop note
+    top one:
+        press:
+            if velocity is set, don't do anything (bottom would have been pressed before, so already actuated)
+            set the timer, set the top start time
+        release:
+            clear velocity
+            stop note if playing
+
+*/
+
+auto l = new Log<false>("velocity");
 
 velocity_callback_t velocity_callback;
 
@@ -20,98 +46,145 @@ void velocity_configure(velocity_callback_t callback) {
     velocity_callback = callback;
 }
 
-enum KeyType {
-    KEY_TYPE_UPPER,
-    KEY_TYPE_LOWER,
-    KEY_TYPE_CTRL
+enum class KeyType : uint8_t {
+    upper,
+    lower,
+    ctrl
 };
 
-static KeyType key_type(uint8_t row, uint8_t _column) {
-    return row == 12 ? KEY_TYPE_CTRL : row % 2 == 0 ? KEY_TYPE_UPPER : KEY_TYPE_LOWER;
+static KeyType key_type(const uint8_t row, uint8_t /*_column*/) {
+    // for some reason clang-tidy doesn't like if I do it all in one line
+    if(row == 12) {
+        return KeyType::ctrl;
+    }
+    return row % 2 == 0 ? KeyType::upper : KeyType::lower;
+    // return row == 12 ? KeyType::ctrl : row % 2 == 0 ? KeyType::upper : KeyType::lower;
 }
-static void get_key_pos(uint8_t row, uint8_t column, uint8_t* out_r, uint8_t* out_c) {
+static void get_key_pos(const uint8_t row, const uint8_t column, uint8_t* out_r, uint8_t* out_c) {
     *out_r = row / 2;
     *out_c = column;
 }
 
-/*
- * summary of algorithm:
- * when upper pressed, reset velocity, set time, and start timeout timer
- * when lower pressed OR timeout, if key velocity unset, calculate/set velocity and do callback(set, velocity)
- *                                  otherwise, do callback with preset velocity
- * when lower released, callback(unset)
- * when upper released, don't do anything
- */
+// TODO: tune these values
+#define VELOCITY_TIMEOUT 300'000 // 300ms
+#define VELOCITY_TIMEOUT_VALUE 50
 
-#define VELOCITY_TIMEOUT 300'000 // 150ms
-#define VELOCITY_TIMEOUT_VALUE 50 // TODO: tune this value
-
-SchedulerThread<int> scheduler = SchedulerThread<int>([](int& index) {
-    Serial.println("timeout");
-    struct KeyState* state = &key_states[index];
-    state->velocity = VELOCITY_TIMEOUT_VALUE;
-    state->from_timeout = true;
-    state->measuring = false;
-
-    uint8_t r, c;
-    get_key_pos(index / COLS_LEN, index % COLS_LEN, &r, &c);
-    velocity_callback(r, c, state->velocity, true);
-});
+void scheduler_work(const uint8_t& index);
+auto scheduler = SchedulerThread(scheduler_work);
 
 void velocity_init() {
     scheduler.init();
 }
 
-void velocity_kscan_handler(uint8_t row, uint8_t column, bool pressed) {
-//    Serial.printf("velocity_kscan_handler: row: %d, column: %d, pressed: %d\n", row, column, pressed);
-    KeyType type = key_type(row, column);
-    if(type == KEY_TYPE_CTRL) {
-        auto key = static_cast<CtrlKey>(column);
-        if(pressed) ctrl_keys_evt.emit(key);
+
+enum class TimerState : uint8_t {
+    none,
+    running,
+    timed_out
+};
+
+struct KeyState {
+    TimerState timer_state = TimerState::none;
+    uint32_t top_ts = 0;
+    uint8_t velocity = 0;
+    bool playing = false;
+};
+
+Threads::Mutex key_states_lock;
+volatile static KeyState key_states[MATRIX_LEN / 2];
+
+void send_press(const uint8_t r, const uint8_t c, volatile KeyState* state) {
+    if(!state->playing) {
+        state->playing = true;
+        velocity_callback(r, c, state->velocity, true);
+    }
+}
+
+void send_release(const uint8_t r, const uint8_t c, volatile KeyState* state) {
+    if(state->playing) {
+        state->playing = false;
+        velocity_callback(r, c, 0, false);
+    }
+}
+
+uint8_t get_index(const uint8_t row, const uint8_t column) {
+    return row * COLS_LEN + column;
+}
+
+void scheduler_work(const uint8_t& index) {
+    Threads::Scope m(key_states_lock);
+
+    const auto state = &key_states[index];
+    if(state->timer_state != TimerState::running) {
+        return; // shouldn't be in this state
+    }
+    state->timer_state = TimerState::timed_out;
+    state->velocity = VELOCITY_TIMEOUT_VALUE;
+
+    send_press(index / COLS_LEN, index % COLS_LEN, state);
+}
+void velocity_kscan_handler(const uint8_t matrix_row, const uint8_t matrix_column, const bool pressed) {
+    Threads::Scope m(key_states_lock);
+
+    l->debug("kscan handler: %d, %d, %d\n", matrix_row, matrix_column, pressed);
+
+    const auto type = key_type(matrix_row, matrix_column);
+    if(type == KeyType::ctrl && pressed) {
+        const auto key = static_cast<CtrlKey>(matrix_column);
+        ctrl_keys_evt.emit(key);
         return;
     }
 
-    uint8_t r, c;
-    get_key_pos(row, column, &r, &c);
-    uint8_t index = r * COLS_LEN + c;
-    struct KeyState* state = &key_states[index];
+    uint8_t row, column; get_key_pos(matrix_row, matrix_column, &row, &column);
+    const uint8_t index = get_index(row, column);
+    const auto state = &key_states[index];
 
-    if(type == KEY_TYPE_UPPER) {
+    if(type == KeyType::lower) {
         if(pressed) {
-            // Serial.println("upper pressed");
-            state->time = micros();
-            state->measuring = true;
-            if(scheduler.cancel(index)) { // if someone double taps without clicking the bottom switch
-                // things are broken here!!!
-                Serial.println("aaaa");
-                velocity_callback(r, c, state->velocity, true);
-                velocity_callback(r, c, state->velocity, false); // TODO does this actually do anything useful????
+            if(state->timer_state == TimerState::timed_out) {
+                l->debug("bottom pressed when already timed out, ignoring\n");
+                state->timer_state = TimerState::none;
+                return;
             }
-            scheduler.schedule(VELOCITY_TIMEOUT, index);
-        } else {
-            // Serial.println("upper released");
-            if(state->from_timeout) {
-                velocity_callback(r, c, state->velocity, false);
-                state->from_timeout = false;
-            }
-        }
-    } else if(!state->from_timeout) {
-        if(pressed) {
-            // Serial.println("lower pressed");
-            if(state->measuring) {
+            if(state->timer_state == TimerState::running) {
+                // cancel job
                 scheduler.cancel(index);
-                uint32_t delay = micros() - state->time;
-                Serial.printf("delay: %d\n", delay);
-                state->measuring = false;
-                // actually calculate the velocity - it should be within 0-127 (127 = highest velocity, so lowest delay)
-                // for now we'll use a linear velocity curve, but something else might be good to implement in the future
-                // state->velocity = (uint8_t) (127 * (1 - (float) delay / VELOCITY_TIMEOUT));
-                state->velocity = ((((uint32_t)127) * (VELOCITY_TIMEOUT - delay)) / VELOCITY_TIMEOUT);
+                state->timer_state = TimerState::none;
             }
-            velocity_callback(r, c, state->velocity, true);
+            if(state->velocity != 0) {
+                // send it (probably double-clicking lower switch)
+                l->debug("sending using existing velocity\n");
+            } else if(state->top_ts != 0) {
+                // update velocity and send it (regular keypress)
+                const uint32_t delay = micros() - state->top_ts;
+                state->velocity = static_cast<uint8_t>((1 - std::min(1.0, delay / static_cast<double>(VELOCITY_TIMEOUT))) * 255);
+                l->debug("delay was %d, updating velocity to %d and sending press\n", delay, state->velocity);
+            } else {
+                // error (idk what happened, probably weird switch mechanical stuff or my code is broken)
+                state->velocity = VELOCITY_TIMEOUT_VALUE;
+                l->debug("unexpected state (bottom pressed before top?), setting to default velocity and sending\n");
+                // send it
+            }
+            send_press(row, column, state);
         } else {
-            // Serial.println("lower released");
-            velocity_callback(r, c, state->velocity, false);
+            send_release(row, column, state);
+        }
+    }
+    else /* type == KeyType::upper */ {
+        if(pressed) {
+            if(state->velocity == 0) {
+                l->debug("setting top_ts and starting timeout\n");
+                // if velocity is set, the bottom switch would have been pressed before, so already key pressed
+                state->top_ts = micros();
+                scheduler.schedule(VELOCITY_TIMEOUT, index);
+                state->timer_state = TimerState::running;
+            } else {
+                l->debug("top pressed but velocity is already set, ignoring\n");
+            }
+        } else {
+            // todo: what if only pressed down top, then release before timeout ends? default length?
+            state->velocity = 0;
+            send_release(row, column, state);
         }
     }
 }

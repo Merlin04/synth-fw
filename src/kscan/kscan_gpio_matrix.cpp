@@ -14,7 +14,7 @@
 
 /** Current state of the matrix as a flattened 2D array of length
  * (config->rows * config->cols) */
-static struct debounce_state matrix_state[MATRIX_LEN];
+static debounce_state matrix_state[MATRIX_LEN];
 
 kscan_callback_t kscan_callback;
 /** Timestamp of the current or scheduled scan, in microseconds. */
@@ -29,20 +29,20 @@ static void kscan_matrix_interrupt_enable() {
 #endif
     // write all the outputs high so we get interrupts
     // see https://www.infineon.com/dgdl/Infineon-AN2034_PSoC_1_Reading_Matrix_and_Common_Bus_Keypads-ApplicationNotes-v07_00-EN.pdf?fileId=8ac78c8c7cdc391c017d073254b85689
-    for(int matrix_output : matrix_outputs) {
+    for(const int matrix_output : matrix_outputs) {
         digitalWrite(matrix_output, 1);
     }
 
-    for(int matrix_input : matrix_inputs) {
+    for(const int matrix_input : matrix_inputs) {
         attachInterrupt(matrix_input, kscan_matrix_irq_callback_handler, RISING);
     }
 }
 
 static void kscan_matrix_interrupt_disable() {
-    for(int matrix_input : matrix_inputs) {
+    for(const int matrix_input : matrix_inputs) {
         detachInterrupt(matrix_input);
     }
-    for(int matrix_output : matrix_outputs) {
+    for(const int matrix_output : matrix_outputs) {
         digitalWrite(matrix_output, 0);
     }
 }
@@ -110,7 +110,7 @@ void kscan_matrix_read(uint8_t poll_counter) {
     for(uint8_t r = 0; r < ROWS_LEN; r++) {
         for(uint8_t c = 0; c < COLS_LEN; c++) {
             const int index = state_index_rc(r, c);
-            struct debounce_state* state = &matrix_state[index];
+            const debounce_state* state = &matrix_state[index];
 
             if(debounce_get_changed(state)) {
                 const bool pressed = debounce_is_pressed(state);
@@ -160,11 +160,11 @@ void kscan_matrix_enable() {
 }
 
 void kscan_matrix_init() {
-    for(int matrix_input : matrix_inputs) {
+    for(const int matrix_input : matrix_inputs) {
         pinMode(matrix_input, INPUT_PULLDOWN);
     }
 
-    for(int matrix_output : matrix_outputs) {
+    for(const int matrix_output : matrix_outputs) {
         pinMode(matrix_output, OUTPUT);
         digitalWrite(matrix_output, 0);
     }

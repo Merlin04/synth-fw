@@ -15,4 +15,4 @@ enum CtrlKey : uint8_t {
     KEY_RIGHT_4 = 8
 };
 
-inline auto ctrl_keys_evt = BubblingEvent<CtrlKey>();
+inline auto ctrl_keys_evt = BubblingEvent<const CtrlKey>();
