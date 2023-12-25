@@ -24,7 +24,7 @@ ThreadWrap(Serial, SerialWrapped)
 #ifdef MATRIX_TEST
 #include "test/matrix_test.hpp"
 #endif
-//#include "hardware/files.hpp"
+#include "hardware/files.hpp"
 
 void setup() {
      for(int i = 0; i < 3; i++) {

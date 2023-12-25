@@ -66,8 +66,8 @@ static void get_key_pos(const uint8_t row, const uint8_t column, uint8_t* out_r,
 }
 
 // TODO: tune these values
-#define VELOCITY_TIMEOUT 300'000 // 300ms
-#define VELOCITY_TIMEOUT_VALUE 50
+#define VELOCITY_TIMEOUT 100'000 // 100ms
+#define VELOCITY_TIMEOUT_VALUE 150
 
 void scheduler_work(const uint8_t& index);
 auto scheduler = SchedulerThread(scheduler_work);
@@ -185,6 +185,12 @@ void velocity_kscan_handler(const uint8_t matrix_row, const uint8_t matrix_colum
             // todo: what if only pressed down top, then release before timeout ends? default length?
             state->velocity = 0;
             send_release(row, column, state);
+
+            // temp fix for keys getting stuck on
+            if(state->timer_state == TimerState::running) {
+                scheduler.cancel(index);
+                state->timer_state = TimerState::none;
+            }
         }
     }
 }

@@ -25,6 +25,7 @@ namespace Midi {
     void send_note_on(const uint8_t note, const uint8_t velocity) {
         // get the last bit and make it the 7th
         const uint8_t lsb = (velocity & 1) << 7;
+        // https://www.midi.org/midi/specifications/midi1-specifications/midi-1-addenda/high-resolution-velocity-prefix
         usbMIDI.sendControlChange(0x58, lsb, channel);
         // get upper 7 bits
         const uint8_t msb = velocity >> 1;
