@@ -1,0 +1,12 @@
+[package]
+name = "weird-midifw"
+edition = "2021"
+version = "0.1.0"
+readme = "README.md"
+
+[lib]
+path = "src/lib.rs"
+name = "weird_midifw"
+edition = "2021"
+crate-type = ["staticlib"]
+required-features = []

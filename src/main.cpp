@@ -26,11 +26,16 @@ ThreadWrap(Serial, SerialWrapped)
 #endif
 #include "hardware/files.hpp"
 
+// rust ffi
+extern "C" int foo();
+
 void setup() {
-     for(int i = 0; i < 3; i++) {
-         Serial.println("Yeag!");
-         delay(1000);
-     }
+    for(int i = 0; i < 3; i++) {
+        Serial.println("Yeag!");
+        delay(1000);
+    }
+
+    Serial.println(foo());
 
     Serial.println("startup");
     Serial.println(CrashReport);

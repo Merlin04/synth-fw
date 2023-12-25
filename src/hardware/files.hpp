@@ -156,4 +156,4 @@ public:
     }
 };
 
-inline DataCollection<NoteLayout, NoteLayoutSerializer> note_layouts("note_layouts", &(new float[note_layout_len]) /* TODO default */);
+// inline DataCollection<NoteLayout, NoteLayoutSerializer> note_layouts("note_layouts", &(new float[note_layout_len]) /* TODO default */);
